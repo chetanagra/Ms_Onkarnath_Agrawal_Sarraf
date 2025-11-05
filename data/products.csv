@@ -1,0 +1,4 @@
+name,sku,category,metal,purity,weight_g,stone,price_making_perc,image
+22K Classic Bangle,BAN-001,Bangles,Gold,22K,22.8,,7,assets/img/ban-001.jpg
+18K Diamond Ring,RIN-104,Rings,Gold,18K,4.2,Diamond,12,assets/img/rin-104.jpg
+Silver Anklet,ANK-009,Anklet,Silver,NA,18,,5,assets/img/ank-009.jpg

@@ -1,0 +1,75 @@
+name: Update gold/silver rates
+
+on:
+  schedule:
+    - cron: "0 * * * *"   # every hour
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Fetch rates from API
+        env:
+          GOLD_API_KEY: ${{ secrets.GOLD_API_KEY }}
+        run: |
+          OUNCE_TO_GRAM=31.1034768
+
+          # 1) Call your gold price API (example shape; adjust to your provider)
+          # Expecting INR per troy ounce for gold and silver
+          RESP=$(curl -sS -H "x-api-key: ${GOLD_API_KEY}" \
+            "https://YOUR-GOLD-API.example.com/v1/rates?currency=INR&metals=gold,silver")
+
+          # 2) Extract values (EDIT the jq paths according to your API)
+          GOLD_PER_OZ=$(echo "$RESP" | jq -r '.gold.price_in_inr_per_oz')
+          SILV_PER_OZ=$(echo "$RESP" | jq -r '.silver.price_in_inr_per_oz')
+
+          # 3) Convert to ₹/gram
+          GOLD24=$(python - << 'PY'
+from math import floor
+oz_to_g = 31.1034768
+import os
+v = float(os.environ.get("GOLD_PER_OZ","0"))
+print(round(v/oz_to_g))
+PY
+)
+          SILVER=$(python - << 'PY'
+from math import floor
+oz_to_g = 31.1034768
+import os
+v = float(os.environ.get("SILV_PER_OZ","0"))
+print(round(v/oz_to_g))
+PY
+)
+
+          # 22K approximation
+          GOLD22=$(python - << 'PY'
+import os
+print(round(int(os.environ.get("GOLD24","0")) * 0.9167))
+PY
+)
+
+          mkdir -p data
+          UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
+          cat > data/rates.json <<JSON
+{
+  "gold24k": $GOLD24,
+  "gold22k": $GOLD22,
+  "silver": $SILVER,
+  "updated": "$UPDATED"
+}
+JSON
+
+      - name: Commit & push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/rates.json
+          git commit -m "Auto-update rates" || echo "No changes to commit"
+          git push

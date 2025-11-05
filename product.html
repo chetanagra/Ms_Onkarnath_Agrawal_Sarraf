@@ -1,0 +1,64 @@
+<!doctype html><html><head>
+<meta charset="utf-8"><title>Product — YOUR BRAND</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head><body>
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="index.html" class="text-xl font-bold">YOUR BRAND</a>
+    <nav class="hidden md:flex gap-6 text-sm">
+      <a href="catalog.html">Catalog</a><a href="gold-rate.html">Gold Rates</a><a href="about.html">About</a><a href="contact.html">Contact</a>
+    </nav>
+  </div>
+  <div id="rate-bar" class="text-center text-xs py-2"></div>
+</header>
+
+<main class="max-w-6xl mx-auto p-4">
+  <div id="pd"></div>
+</main>
+
+<script>
+function get(q){ return new URLSearchParams(location.search).get(q); }
+async function loadCSV(url){
+  const t = await (await fetch(url)).text();
+  const [h,...r] = t.trim().split('\n').map(l=>l.split(','));
+  return r.map(row=>Object.fromEntries(h.map((k,i)=>[k.trim(), row[i]?.trim()])));
+}
+function rupee(n){return '₹'+Math.round(n).toLocaleString('en-IN');}
+
+(async ()=>{
+  const [items, rates] = await Promise.all([
+    loadCSV('data/products.csv'),
+    fetch('data/rates.json').then(r=>r.json())
+  ]);
+  const sku = get('sku'); const p = items.find(x=>x.sku===sku);
+  const rate24 = rates.gold24k;
+  const rate22 = rates.gold22k;
+  const rate = p.purity==='24K' ? rate24 : p.purity==='22K' ? rate22 : Math.round(rate24*0.75); // 18K approx
+  const base = Number(p.weight_g)*Number(rate);
+  const making = base*(Number(p.price_making_perc||0)/100);
+  const price = base+making;
+  document.getElementById('pd').innerHTML = `
+    <div class="grid md:grid-cols-2 gap-6">
+      <img src="${p.image}" alt="${p.name}" class="rounded-2xl w-full object-cover">
+      <div>
+        <h1 class="text-2xl font-bold">${p.name}</h1>
+        <p class="text-slate-600 my-2">Metal: ${p.metal} ${p.purity} • Weight: ${p.weight_g}g ${p.stone?('• Stone: '+p.stone):''}</p>
+        <div class="text-2xl font-semibold my-3">${rupee(price)}</div>
+        <p class="text-xs text-slate-500 mb-4">Indicative price from today’s rates.</p>
+        <div class="flex gap-3">
+          <a class="px-4 py-2 rounded-xl bg-black text-white" href="https://wa.me/91XXXXXXXXXX?text=I%20am%20interested%20in%20${encodeURIComponent(p.name)}%20(${p.sku})">Enquire on WhatsApp</a>
+          <a class="px-4 py-2 rounded-xl border" href="contact.html">Book visit</a>
+        </div>
+      </div>
+    </div>`;
+})();
+</script>
+
+<script>
+fetch('data/rates.json').then(r=>r.json()).then(d=>{
+  document.getElementById('rate-bar').innerText =
+    `Gold 24K: ₹${d.gold24k}/g | 22K: ₹${d.gold22k}/g | Silver: ₹${d.silver}/g — Updated ${d.updated}`;
+});
+</script>
+</body></html>

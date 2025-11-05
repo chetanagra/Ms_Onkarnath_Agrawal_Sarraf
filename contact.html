@@ -1,0 +1,61 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><title>Contact — YOUR BRAND</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head><body class="text-slate-900">
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="index.html" class="text-xl font-bold">YOUR BRAND</a>
+    <nav class="hidden md:flex gap-6 text-sm">
+      <a href="catalog.html">Catalog</a><a href="gold-rate.html">Gold Rates</a><a href="about.html">About</a><a href="contact.html">Contact</a>
+    </nav>
+  </div>
+  <div id="rate-bar" class="text-center text-xs py-2"></div>
+</header>
+
+<main class="max-w-6xl mx-auto p-4">
+  <h1 class="text-2xl font-semibold mb-4">Visit or Message Us</h1>
+
+  <section class="grid md:grid-cols-2 gap-8">
+    <div class="space-y-3">
+      <p class="text-slate-700"><b>Store:</b> YOUR BRAND, Street, Area, City, State, PIN</p>
+      <p class="text-slate-700"><b>Hours:</b> Mon–Sat 10:30 AM – 8:00 PM, Sun 11:00 AM – 6:00 PM</p>
+      <p class="text-slate-700"><b>Phone:</b> <a href="tel:+91XXXXXXXXXX" class="underline">+91 XXXXX XXXXX</a></p>
+      <p class="text-slate-700"><b>Email:</b> <a href="mailto:hello@yourbrand.in" class="underline">hello@yourbrand.in</a></p>
+      <div class="flex gap-3 pt-2">
+        <a href="https://wa.me/91XXXXXXXXXX" class="px-4 py-2 rounded-xl bg-green-600 text-white">Chat on WhatsApp</a>
+        <a href="catalog.html" class="px-4 py-2 rounded-xl border">View Catalog</a>
+      </div>
+    </div>
+
+    <!-- Replace the src with your Google Maps embed link -->
+    <iframe
+      class="w-full h-64 md:h-full rounded-2xl border"
+      loading="lazy" allowfullscreen
+      referrerpolicy="no-referrer-when-downgrade"
+      src="https://www.google.com/maps/embed?pb=YOUR_EMBED_CODE">
+    </iframe>
+  </section>
+
+  <section class="mt-10">
+    <h2 class="text-xl font-semibold mb-3">Quick Enquiry</h2>
+    <!-- Easiest: Google Form embed OR mailto link. Below is a simple mailto. -->
+    <form action="mailto:hello@yourbrand.in" method="post" enctype="text/plain" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <input required name="Name" placeholder="Your name" class="border p-3 rounded-xl">
+      <input required name="Phone" placeholder="Phone" class="border p-3 rounded-xl">
+      <input name="Email" placeholder="Email (optional)" class="border p-3 rounded-xl md:col-span-2">
+      <textarea required name="Message" placeholder="Your message" rows="4" class="border p-3 rounded-xl md:col-span-2"></textarea>
+      <button class="px-5 py-3 rounded-xl bg-black text-white md:col-span-2">Send Enquiry</button>
+    </form>
+    <!-- Or embed a Google Form for better reliability -->
+  </section>
+</main>
+
+<script>
+fetch('data/rates.json').then(r=>r.json()).then(d=>{
+  document.getElementById('rate-bar').innerText =
+    `Gold 24K: ₹${d.gold24k}/g | 22K: ₹${d.gold22k}/g | Silver: ₹${d.silver}/g — Updated ${d.updated}`;
+}).catch(()=>{ document.getElementById('rate-bar').innerText=''; });
+</script>
+</body></html>

@@ -1,0 +1,59 @@
+<!doctype html><html><head>
+<meta charset="utf-8"><title>Home — YOUR BRAND</title>
+<meta name="description" content="Fine jewellery — gold, diamond, silver.">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/css/styles.css" />
+</head><body class="text-slate-900">
+<!-- Header with rate-bar (paste same header from step 3) -->
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="index.html" class="text-xl font-bold tracking-wide">YOUR BRAND</a>
+    <nav class="hidden md:flex gap-6 text-sm">
+      <a href="catalog.html">Catalog</a>
+      <a href="gold-rate.html">Gold Rates</a>
+      <a href="about.html">About</a>
+      <a href="contact.html">Contact</a>
+    </nav>
+  </div>
+  <div id="rate-bar" class="text-center text-xs py-2"></div>
+</header>
+
+<section class="max-w-6xl mx-auto px-4 py-10 grid md:grid-cols-2 gap-8 items-center">
+  <div>
+    <h1 class="text-3xl md:text-5xl font-semibold leading-tight">Elegant Gold & Diamond Jewellery</h1>
+    <p class="mt-4 text-slate-600">Handcrafted designs. Hallmarked purity. Transparent pricing linked to today’s gold rate.</p>
+    <div class="mt-6 flex gap-3">
+      <a href="catalog.html" class="px-5 py-3 rounded-xl bg-black text-white">Shop Catalog</a>
+      <a href="contact.html" class="px-5 py-3 rounded-xl border">Book a Visit</a>
+    </div>
+  </div>
+  <img src="assets/img/hero.jpg" class="rounded-2xl w-full object-cover" alt="Hero">
+</section>
+
+<section class="max-w-6xl mx-auto px-4 py-10">
+  <h2 class="text-xl font-semibold mb-4">New Arrivals</h2>
+  <div id="featured" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+</section>
+
+<script>
+fetch('data/products.csv').then(r=>r.text()).then(t=>{
+  const [head,...rows]=t.trim().split('\n').map(l=>l.split(','));
+  const items=rows.slice(0,4).map(r=>Object.fromEntries(head.map((h,i)=>[h.trim(), r[i]?.trim()])));
+  const g=document.getElementById('featured');
+  items.forEach(x=>{
+    const a=document.createElement('a');
+    a.href=`product.html?sku=${encodeURIComponent(x.sku)}`;
+    a.className="block rounded-2xl shadow p-3 hover:shadow-lg transition";
+    a.innerHTML=`<img class="rounded-xl aspect-square object-cover w-full" src="${x.image}" alt="${x.name}"><h3 class="mt-2 font-semibold">${x.name}</h3><p class="text-sm text-slate-600">${x.metal} ${x.purity} • ${x.weight_g}g</p>`;
+    g.appendChild(a);
+  });
+});
+</script>
+
+<script>
+fetch('data/rates.json').then(r=>r.json()).then(d=>{
+  document.getElementById('rate-bar').innerText=
+    `Gold 24K: ₹${d.gold24k}/g | 22K: ₹${d.gold22k}/g | Silver: ₹${d.silver}/g — Updated ${d.updated}`;
+});
+</script>
+</body></html>

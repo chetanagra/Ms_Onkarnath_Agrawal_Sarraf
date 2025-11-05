@@ -1,0 +1,104 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><title>About — YOUR BRAND</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="assets/css/styles.css">
+</head><body class="text-slate-900">
+<header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
+  <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+    <a href="index.html" class="text-xl font-bold">YOUR BRAND</a>
+    <nav class="hidden md:flex gap-6 text-sm">
+      <a href="catalog.html">Catalog</a><a href="gold-rate.html">Gold Rates</a><a href="about.html">About</a><a href="contact.html">Contact</a>
+    </nav>
+  </div>
+  <div id="rate-bar" class="text-center text-xs py-2"></div>
+</header>
+
+<main class="max-w-6xl mx-auto p-4">
+  <!-- HERO / INTRO -->
+  <section class="grid md:grid-cols-2 gap-8 items-center py-8">
+    <div>
+      <h1 class="text-3xl font-semibold">Curated Fine Jewellery, Chosen for You</h1>
+      <p class="mt-4 text-slate-700">
+        <b>YOUR BRAND</b> is a jewellery <b>retailer & curator</b>. We handpick designs from trusted partner workshops and reputed brands,
+        focusing on everyday elegance, bridal collections, and timeless gifts. Every piece is verified and sold with complete transparency.
+      </p>
+      <ul class="mt-4 space-y-2 text-slate-700">
+        <li>• BIS Hallmark verified gold</li>
+        <li>• IGI/GIA certified diamonds where applicable</li>
+        <li>• Transparent pricing linked to today’s gold rate</li>
+        <li>• Exchange/buyback policies as per product category</li>
+      </ul>
+    </div>
+    <img src="assets/img/about-hero.jpg" alt="Curated jewellery display" class="rounded-2xl w-full object-cover">
+  </section>
+
+  <!-- WHAT WE DO (AS RETAILER/CURATOR) -->
+  <section class="grid md:grid-cols-3 gap-4 py-6">
+    <div class="rounded-2xl border p-5">
+      <h3 class="font-semibold">Sourcing</h3>
+      <p class="text-slate-700 text-sm mt-2">
+        We collaborate with vetted manufacturers and designer labels. Pieces are selected for craftsmanship,
+        comfort, and value—so you don’t have to sift through hundreds of options.
+      </p>
+    </div>
+    <div class="rounded-2xl border p-5">
+      <h3 class="font-semibold">Verification</h3>
+      <p class="text-slate-700 text-sm mt-2">
+        Purity and stone quality are checked against certifications. We clearly display weight, karatage, and any stone details.
+      </p>
+    </div>
+    <div class="rounded-2xl border p-5">
+      <h3 class="font-semibold">Service</h3>
+      <p class="text-slate-700 text-sm mt-2">
+        Size adjustments, cleaning, and after-sales support are coordinated through our partner network and in-store team.
+      </p>
+    </div>
+  </section>
+
+  <!-- HOW PRICING WORKS (NO MANUFACTURING CLAIMS) -->
+  <section class="py-8">
+    <h2 class="text-xl font-semibold mb-3">Pricing & Transparency</h2>
+    <ol class="list-decimal pl-6 text-slate-700 space-y-2">
+      <li><b>Base metal value</b> = Today’s gold rate × net gold weight (grams)</li>
+      <li><b>Making/brand charges</b> = As provided by our partner brands/workshops</li>
+      <li><b>Stones</b> (if any) = Diamond/gem prices according to certification/quality</li>
+      <li>Taxes as applicable at billing</li>
+    </ol>
+    <p class="text-slate-700 mt-3 text-sm">
+      Note: We don’t manufacture in-house. All pieces are sourced from verified partners; documentation is provided wherever applicable.
+    </p>
+  </section>
+
+  <!-- TRUST BADGES -->
+  <section class="py-8">
+    <h2 class="text-xl font-semibold mb-3">Certifications & Assurance</h2>
+    <div class="flex flex-wrap gap-4 items-center">
+      <img src="assets/img/bis-hallmark.png" class="h-10" alt="BIS Hallmark">
+      <img src="assets/img/igi.png" class="h-10" alt="IGI">
+      <img src="assets/img/gia.png" class="h-10" alt="GIA">
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-6">
+    <div class="rounded-2xl border p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div>
+        <h3 class="font-semibold">Looking for something specific?</h3>
+        <p class="text-slate-700 text-sm mt-1">Share a reference photo or describe your requirement—we’ll source options for you.</p>
+      </div>
+      <div class="flex gap-3">
+        <a class="px-4 py-2 rounded-xl bg-black text-white" href="https://wa.me/91XXXXXXXXXX">Chat on WhatsApp</a>
+        <a class="px-4 py-2 rounded-xl border" href="catalog.html">Browse Catalog</a>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+fetch('data/rates.json').then(r=>r.json()).then(d=>{
+  document.getElementById('rate-bar').innerText =
+    `Gold 24K: ₹${d.gold24k}/g | 22K: ₹${d.gold22k}/g | Silver: ₹${d.silver}/g — Updated ${d.updated}`;
+}).catch(()=>{ document.getElementById('rate-bar').innerText=''; });
+</script>
+</body></html>
