@@ -1,1 +1,7 @@
-{"gold24k": 7300, "gold22k": 6700, "silver": 92, "updated": "YYYY-MM-DD HH:MM IST"}
+{
+  "gold24k": 11302,
+  "gold22k": 10361,
+  "silver": 136,
+  "updated": "2025-11-05 15:55 IST",
+  "source": "GoldAPI (spot per gram, INR)"
+}
