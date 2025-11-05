@@ -18,17 +18,17 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-#       - name: Select provider (alternate each run)
-#         id: select
-#         run: |
-#           # Alternate providers by run number (odd/even)
-#           rn=${GITHUB_RUN_NUMBER}
-#           if [ $((rn % 2)) -eq 0 ]; then
-#             echo "provider=goldapi" >> $GITHUB_OUTPUT
-#           else
-#             echo "provider=metalprice" >> $GITHUB_OUTPUT
-#           fi
-#           echo "Selected provider for this run: $(cat $GITHUB_OUTPUT)"
+      - name: Select provider (alternate each run)
+        id: select
+        run: |
+          # Alternate providers by run number (odd/even)
+          rn=${GITHUB_RUN_NUMBER}
+          if [ $((rn % 2)) -eq 0 ]; then
+            echo "provider=goldapi" >> $GITHUB_OUTPUT
+          else
+            echo "provider=metalprice" >> $GITHUB_OUTPUT
+          fi
+          echo "Selected provider for this run: $(cat $GITHUB_OUTPUT)"
 
 #       - name: Fetch via GoldAPI
 #         id: goldapi
