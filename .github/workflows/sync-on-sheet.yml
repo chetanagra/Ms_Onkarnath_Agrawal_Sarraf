@@ -1,9 +1,11 @@
 name: Sync products from Google Sheets
 
 on:
+  repository_dispatch:
+    types: [sheet-updated]
   # schedule:
     # - cron: "0 * * * *"   # every 1 hours
-  workflow_dispatch:        # allow manual run
+  # workflow_dispatch:        # allow manual run
 
 permissions:
   contents: write
