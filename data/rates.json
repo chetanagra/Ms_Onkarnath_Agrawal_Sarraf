@@ -1,7 +1,7 @@
 {
-  "gold24k": 11682,
-  "gold22k": 10709,
-  "silver": 142,
-  "updated": "2025-11-10 19:19 IST",
-  "source": "GoldAPI (spot per gram, INR)"
+  "gold24k": 11404,
+  "gold22k": 10454,
+  "silver": 138,
+  "updated": "2025-11-10 19:26 IST",
+  "source": "MetalpriceAPI (spot per gram, INR)"
 }
