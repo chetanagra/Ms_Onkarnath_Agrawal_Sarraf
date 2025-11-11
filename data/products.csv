@@ -13,5 +13,5 @@ id,name,category,karat,weight_g,making_percent,stone,price_override,image_url,de
 12,necklece,necklece,20,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762778741/jewellery/cjunux7lfrhbtkqhreba.jpg,
 13,necklece,necklece,20,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762784665/jewellery/yfuz0im62rywabktdccg.jpg,
 14,necklece,necklece,20,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762784694/jewellery/cycfloak5lvjsfgdeeli.jpg,
-15,neckless,,,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762784731/jewellery/uqn9msav2jl4fszn2btx.jpg,
+15,neckless,necklece,20,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762784731/jewellery/uqn9msav2jl4fszn2btx.jpg,
 ,,,,,,,,https://res.cloudinary.com/dem9lpte6/image/upload/v1762784853/jewellery/li61r9vlukyhzpurpqqf.jpg,
