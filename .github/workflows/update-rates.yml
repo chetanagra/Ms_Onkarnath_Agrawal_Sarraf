@@ -24,45 +24,37 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install jq + python3
+      - name: Install jq + bc
         run: |
           sudo apt-get update
-          sudo apt-get install -y jq python3
+          sudo apt-get install -y jq bc
 
       - name: Fetch via GoldAPI (XAU & XAG in INR)
         id: goldapi
         env:
           GOLDAPI_KEY: ${{ secrets.GOLDAPI_KEY }}
+          OUNCE_TO_GRAM: ${{ env.OUNCE_TO_GRAM }}
         run: |
           set -euo pipefail
           [ -z "${GOLDAPI_KEY:-}" ] && { echo "No GOLDAPI_KEY"; exit 1; }
 
-          XAU_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAU/INR)
-          XAG_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAG/INR)
+          XAU_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAU/INR")
+          XAG_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAG/INR")
 
           # Prefer INR/gram; else derive from INR/oz
           G_INR_G=$(echo "$XAU_JSON" | jq -r '.price_gram_24k // empty')
           if [ -z "$G_INR_G" ] || [ "$G_INR_G" = "null" ]; then
             POZ_G=$(echo "$XAU_JSON" | jq -r '.price // empty')  # ₹/oz
             [ -z "$POZ_G" ] && { echo "GoldAPI missing gold price"; exit 1; }
-            export POZ_G OUNCE_TO_GRAM
-            G_INR_G=$(python3 - <<'PY'
-import os
-print(float(os.environ['POZ_G'])/float(os.environ['OUNCE_TO_GRAM']))
-PY
-)
+            # Convert INR/oz -> INR/g using bc
+            G_INR_G=$(echo "scale=8; $POZ_G / $OUNCE_TO_GRAM" | bc -l)
           fi
 
           S_INR_G=$(echo "$XAG_JSON" | jq -r '.price_gram_999 // empty')
           if [ -z "$S_INR_G" ] || [ "$S_INR_G" = "null" ]; then
             POZ_S=$(echo "$XAG_JSON" | jq -r '.price // empty') || true
             if [ -n "${POZ_S:-}" ]; then
-              export POZ_S OUNCE_TO_GRAM
-              S_INR_G=$(python3 - <<'PY'
-import os
-print(float(os.environ['POZ_S'])/float(os.environ['OUNCE_TO_GRAM']))
-PY
-)
+              S_INR_G=$(echo "scale=8; $POZ_S / $OUNCE_TO_GRAM" | bc -l)
             else
               S_INR_G=""
             fi
@@ -70,6 +62,8 @@ PY
 
           TS=$(echo "$XAU_JSON" | jq -r '.timestamp // empty')
 
+          # Normalize formatting (remove leading + sign, ensure numeric)
+          # Write outputs
           echo "gold24k_inr_per_g=$G_INR_G" >> "$GITHUB_OUTPUT"
           echo "silver_inr_per_g_999=${S_INR_G:-}" >> "$GITHUB_OUTPUT"
           echo "timestamp=$TS" >> "$GITHUB_OUTPUT"
@@ -80,78 +74,84 @@ PY
           set -euo pipefail
           G_INR_G='${{ steps.goldapi.outputs.gold24k_inr_per_g }}'
           [ -z "$G_INR_G" ] && { echo "Missing gold INR/gram"; exit 1; }
-          export G_INR_G PURITY_NUM PURITY_DEN DUTY BANK
 
-          python3 - <<'PY'
-import os, json
-g = float(os.environ['G_INR_G'])           # INR per gram (24k)
-purity = float(os.environ['PURITY_NUM'])/float(os.environ['PURITY_DEN'])  # 995/999
-duty   = float(os.environ['DUTY'])   # 0.065
-bank   = float(os.environ['BANK'])   # 0.001
+          PURITY_NUM=${PURITY_NUM}
+          PURITY_DEN=${PURITY_DEN}
+          DUTY=${DUTY}
+          BANK=${BANK}
 
-base_995 = g * purity
-landed_per_gram = base_995 * (1 + duty + bank)
-landed_per_10g  = landed_per_gram * 10
-landed_per_kg   = landed_per_gram * 1000
+          # Using bc for floating math
+          # base_995 = g * (PURITY_NUM / PURITY_DEN)
+          base_995=$(echo "scale=8; ${G_INR_G} * (${PURITY_NUM} / ${PURITY_DEN})" | bc -l)
 
-out = {
-  "gold24k_inr_per_g": round(g, 4),
-  "base_995_inr_per_g": round(base_995, 4),
-  "landed_per_gram": round(landed_per_gram, 2),
-  "landed_per_10g": round(landed_per_10g, 2),
-  "landed_per_kg": round(landed_per_kg, 2)
-}
-print(json.dumps(out))
-PY
+          # landed_per_gram = base_995 * (1 + DUTY + BANK)
+          sum_factor=$(echo "scale=8; 1 + ${DUTY} + ${BANK}" | bc -l)
+          landed_per_gram=$(echo "scale=8; ${base_995} * ${sum_factor}" | bc -l)
+
+          # multiply to get per 10g and per kg
+          landed_per_10g=$(echo "scale=2; ${landed_per_gram} * 10" | bc -l)
+          landed_per_kg=$(echo "scale=2; ${landed_per_gram} * 1000" | bc -l)
+
+          # Round/format for output (keep a few decimals where relevant)
+          gold24k_rounded=$(printf "%.4f" "${G_INR_G}")
+          base_995_rounded=$(printf "%.4f" "${base_995}")
+          landed_g_rounded=$(printf "%.2f" "${landed_per_gram}")
+          landed_10g_rounded=$(printf "%.2f" "${landed_per_10g}")
+          landed_kg_rounded=$(printf "%.2f" "${landed_per_kg}")
+
+          echo "gold24k_inr_per_g=${gold24k_rounded}" >> "$GITHUB_OUTPUT"
+          echo "base_995_inr_per_g=${base_995_rounded}" >> "$GITHUB_OUTPUT"
+          echo "landed_per_gram=${landed_g_rounded}" >> "$GITHUB_OUTPUT"
+          echo "landed_per_10g=${landed_10g_rounded}" >> "$GITHUB_OUTPUT"
+          echo "landed_per_kg=${landed_kg_rounded}" >> "$GITHUB_OUTPUT"
 
       - name: Write rates.json
         run: |
           set -euo pipefail
           mkdir -p data
+
           G_INR_G='${{ steps.goldapi.outputs.gold24k_inr_per_g }}'
           S_INR_G='${{ steps.goldapi.outputs.silver_inr_per_g_999 }}'
           TS='${{ steps.goldapi.outputs.timestamp }}'
 
-          PURITY_NUM=${PURITY_NUM}; PURITY_DEN=${PURITY_DEN}; DUTY=${DUTY}; BANK=${BANK}
-          BASE_995=$(python3 - <<PY
-g=${G_INR_G}; purity=${PURITY_NUM}/${PURITY_DEN}
-print(round(g*purity,4))
-PY
-)
-          LANDED_G=$(python3 - <<PY
-g=${G_INR_G}; purity=${PURITY_NUM}/${PURITY_DEN}; duty=${DUTY}; bank=${BANK}
-print(round((g*purity)*(1+duty+bank),2))
-PY
-)
-          LANDED_10G=$(python3 - <<PY
-x=${LANDED_G}
-print(round(x*10,2))
-PY
-)
-          LANDED_KG=$(python3 - <<PY
-x=${LANDED_G}
-print(round(x*1000,2))
-PY
-)
+          PURITY_NUM=${PURITY_NUM}
+          PURITY_DEN=${PURITY_DEN}
+          DUTY=${DUTY}
+          BANK=${BANK}
+
+          # compute base_995, landed values using bc (duplicate of parity step but ensures consistent values in file)
+          base_995=$(echo "scale=8; ${G_INR_G} * (${PURITY_NUM} / ${PURITY_DEN})" | bc -l)
+          sum_factor=$(echo "scale=8; 1 + ${DUTY} + ${BANK}" | bc -l)
+          landed_per_gram=$(echo "scale=8; ${base_995} * ${sum_factor}" | bc -l)
+          landed_per_10g=$(echo "scale=2; ${landed_per_gram} * 10" | bc -l)
+          landed_per_kg=$(echo "scale=2; ${landed_per_gram} * 1000" | bc -l)
+
+          # pretty formatting
+          BASE_995=$(printf "%.4f" "${base_995}")
+          LANDED_G=$(printf "%.2f" "${landed_per_gram}")
+          LANDED_10G=$(printf "%.2f" "${landed_per_10g}")
+          LANDED_KG=$(printf "%.2f" "${landed_per_kg}")
+
           UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
 
           cat > data/rates.json <<JSON
-          {
-            "gold24k_inr_per_g": ${G_INR_G},
-            "silver_inr_per_g_999": ${S_INR_G:-0},
-            "parity": {
-              "purity_used": "${PURITY_NUM}/${PURITY_DEN}",
-              "duty": ${DUTY},
-              "bank": ${BANK},
-              "landed_per_gram": ${LANDED_G},
-              "landed_per_10g": ${LANDED_10G},
-              "landed_per_kg": ${LANDED_KG}
-            },
-            "updated": "${UPDATED}",
-            "goldapi_timestamp": ${TS},
-            "source": "GoldAPI (XAU & XAG)"
-          }
-          JSON
+{
+  "gold24k_inr_per_g": ${G_INR_G},
+  "silver_inr_per_g_999": ${S_INR_G:-0},
+  "parity": {
+    "purity_used": "${PURITY_NUM}/${PURITY_DEN}",
+    "duty": ${DUTY},
+    "bank": ${BANK},
+    "base_995_inr_per_g": ${BASE_995},
+    "landed_per_gram": ${LANDED_G},
+    "landed_per_10g": ${LANDED_10G},
+    "landed_per_kg": ${LANDED_KG}
+  },
+  "updated": "${UPDATED}",
+  "goldapi_timestamp": ${TS},
+  "source": "GoldAPI (XAU & XAG)"
+}
+JSON
 
       - name: Commit & push
         run: |
