@@ -257,12 +257,12 @@ jobs:
 
           # --- Add these two lines before you collate tmp_rate_*.json ---
           jq -n --arg g "${{ steps.goldapi.outputs.gold_per_gram }}" \
-                '{key:"gold_price_per_gram", label:"GOLD SPOT PRICE (per g)", unit:"1 g", buy:($g|tonumber), sell:($g|tonumber)}' \
+                '{key:"gold_price_per_gram", label:"GOLD", unit:"1 g", buy:($g|tonumber), sell:($g|tonumber)}' \
                 > tmp_rate_gold_spot.json
           
           if [ -n "${{ steps.goldapi.outputs.silver_per_gram }}" ] && [ "${{ steps.goldapi.outputs.silver_per_gram }}" != "null" ]; then
             jq -n --arg s "${{ steps.goldapi.outputs.silver_per_gram }}" \
-                  '{key:"silver_price_per_gram", label:"SILVER SPOT PRICE (per g)", unit:"1 g", buy:($s|tonumber), sell:($s|tonumber)}' \
+                  '{key:"silver_price_per_gram", label:"SILVER", unit:"1 g", buy:($s|tonumber), sell:($s|tonumber)}' \
                   > tmp_rate_silver_spot.json
           fi
 
