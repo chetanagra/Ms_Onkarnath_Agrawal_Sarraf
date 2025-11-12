@@ -1,10 +1,9 @@
 name: Update gold/silver (extended rates -> rates.json)
 
-# Runs twice each weekday by default and also manually
 on:
   schedule:
-    - cron: "30 3 * * 1-5"     # 09:00 IST Mon–Fri
-    - cron: "30 12 * * 1-5"    # 18:00 IST Mon–Fri
+    - cron: "30 3 * * 1-5"
+    - cron: "30 12 * * 1-5"
   workflow_dispatch:
 
 permissions:
@@ -35,16 +34,12 @@ jobs:
           set -euo pipefail
           [ -z "${GOLDAPI_KEY:-}" ] && { echo "No GOLDAPI_KEY set in secrets"; exit 1; }
 
-          # Fetch JSON from GoldAPI
           XAU_RAW=$(curl -sSf -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAU/INR")
           XAG_RAW=$(curl -sSf -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAG/INR" || true)
 
-          # Save originals for debugging
           echo "${XAU_RAW}" > /tmp/xau.json || true
           echo "${XAG_RAW}" > /tmp/xag.json || true
 
-          # Extract fields (use jq; provide fallbacks)
-          # Gold: prefer price_gram_24k; else derive from price (INR/oz)
           G24=$(echo "$XAU_RAW" | jq -r '.price_gram_24k // empty')
           if [ -z "${G24}" ] || [ "${G24}" = "null" ]; then
             OZ=$(echo "$XAU_RAW" | jq -r '.price // empty')
@@ -55,16 +50,12 @@ jobs:
             fi
           fi
 
-          # Prefer API-provided price_gram_22k as optional
           G22_RAW=$(echo "$XAU_RAW" | jq -r '.price_gram_22k // empty')
-
-          # API price / low / high (these are useful for generating L/H in outputs)
           API_PRICE=$(echo "$XAU_RAW" | jq -r '.price // empty')
           API_LOW=$(echo "$XAU_RAW" | jq -r '.low_price // empty')
           API_HIGH=$(echo "$XAU_RAW" | jq -r '.high_price // empty')
           API_TS=$(echo "$XAU_RAW" | jq -r '.timestamp // empty')
 
-          # Silver: prefer price_gram_999; else derive from price (oz)
           SGR=$(echo "$XAG_RAW" | jq -r '.price_gram_999 // empty' 2>/dev/null || true)
           if [ -z "${SGR:-}" ] || [ "${SGR}" = "null" ]; then
             S_OZ=$(echo "$XAG_RAW" | jq -r '.price // empty' 2>/dev/null || true)
@@ -75,7 +66,6 @@ jobs:
             fi
           fi
 
-          # Round to integers for display where appropriate
           gold24k_int=""
           if [ -n "${G24:-}" ] && [ "${G24}" != "null" ]; then
             gold24k_int=$(printf "%.0f" "$(echo "$G24" | awk '{printf "%f",$0}')")
@@ -88,7 +78,6 @@ jobs:
 
           src="GoldAPI (XAU/XAG -> INR)"
 
-          # Export outputs for next step
           echo "gold24k=${gold24k_int}" >> "$GITHUB_OUTPUT"
           echo "gold24k_raw=${G24:-}" >> "$GITHUB_OUTPUT"
           echo "gold22k_raw=${G22_RAW:-}" >> "$GITHUB_OUTPUT"
@@ -105,7 +94,6 @@ jobs:
           set -euo pipefail
           mkdir -p data
 
-          # Inputs from previous step outputs
           GOLD24='${{ steps.goldapi.outputs.gold24k }}'
           GOLD24_RAW='${{ steps.goldapi.outputs.gold24k_raw }}'
           GOLD22_RAW='${{ steps.goldapi.outputs.gold22k_raw }}'
@@ -117,22 +105,19 @@ jobs:
           TS='${{ steps.goldapi.outputs.timestamp }}'
           SRC='${{ steps.goldapi.outputs.source }}'
 
-          # Fallbacks
           if [ -z "${GOLD24:-}" ] || [ "${GOLD24}" = "null" ]; then GOLD24=0; fi
           if [ -z "${SILVER:-}" ] || [ "${SILVER}" = "null" ]; then SILVER=""; fi
 
-          # Helper function (compute_line)
           compute_line() {
             local key="$1"; shift
             local label="$1"; shift
-            local base="$1"; shift        # base per gram (INR, can be float)
-            local purity="$1"; shift     # percentage (99.5 or 100)
-            local scale="$1"; shift      # grams to show (10 for per-10g, 1000 for 1 kg)
-            local margin="$1"; shift     # dealer_margin decimal (0.06 = 6%)
+            local base="$1"; shift
+            local purity="$1"; shift
+            local scale="$1"; shift
+            local margin="$1"; shift
             local bspread="$1"; shift
             local sspread="$1"; shift
 
-            # rawBase = base_per_gram * (purity/100) * scale
             rawBase=$(awk "BEGIN{printf \"%.6f\", ($base * ($purity/100) * $scale)}")
             mid=$(awk "BEGIN{printf \"%.6f\", ($rawBase * (1 + $margin))}")
             buy=$(awk "BEGIN{printf \"%.0f\", ($mid * (1 - $bspread))}")
@@ -140,7 +125,6 @@ jobs:
             mid_i=$(awk "BEGIN{printf \"%.0f\", $mid}")
             raw_i=$(awk "BEGIN{printf \"%.0f\", $rawBase}")
 
-            # low/high mapping: use API low/high if API_PRICE present
             if [ -n "${API_PRICE:-}" ] && [ "${API_PRICE}" != "null" ] && [ -n "${API_LOW:-}" ] && [ -n "${API_HIGH:-}" ]; then
               lowRatio=$(awk "BEGIN{printf \"%.6f\", $API_LOW / $API_PRICE}")
               highRatio=$(awk "BEGIN{printf \"%.6f\", $API_HIGH / $API_PRICE}")
@@ -153,6 +137,7 @@ jobs:
               high_i=null
             fi
 
+            # Use if..then..else..end instead of ?: to avoid jq compile errors
             jq -n \
               --arg key "$key" \
               --arg label "$label" \
@@ -171,12 +156,11 @@ jobs:
                 mid: $mid,
                 buy: $buy,
                 sell: $sell,
-                low: ( ($low == "null") ? null : ($low | tonumber) ),
-                high: ( ($high == "null") ? null : ($high | tonumber) )
+                low: (if $low == "null" then null else ($low|tonumber) end),
+                high: (if $high == "null" then null else ($high|tonumber) end)
               }' > "tmp_rate_$key.json"
           }
 
-          # RULES (adjust these to match your shop's pricing policy)
           GOLD_99_5_CASH_MARGIN=0.06
           GOLD_99_5_CASH_BUY_SPREAD=0.0025
           GOLD_99_5_CASH_SELL_SPREAD=0.0025
@@ -205,15 +189,12 @@ jobs:
           BASIC_BUY_SPREAD=0.0
           BASIC_SELL_SPREAD=0.0
 
-          # Unit scales
           GOLD_SCALE=10
           SILVER_SCALE=1000
 
-          # Prefer direct per-gram raw values if available (GOLD24_RAW or SILVER_RAW), else fallback to integer versions
           if [ -n "${GOLD24_RAW:-}" ] && [ "${GOLD24_RAW}" != "null" ]; then
             BASE_GOLD_PER_G="${GOLD24_RAW}"
           else
-            # if only integer available use that
             BASE_GOLD_PER_G="${GOLD24}"
           fi
 
@@ -223,12 +204,10 @@ jobs:
             BASE_SILVER_PER_G="${SILVER}"
           fi
 
-          # Generate gold lines (uses base per gram)
           compute_line "gold_99_50_cash" "GOLD 99.50 CASH BHAV" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_99_5_CASH_MARGIN $GOLD_99_5_CASH_BUY_SPREAD $GOLD_99_5_CASH_SELL_SPREAD
           compute_line "gold_99_50_rtgs" "GOLD 99.50 RTGS BHAV 10-20-50 GM" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_99_5_RTGS_MARGIN $GOLD_99_5_RTGS_BUY_SPREAD $GOLD_99_5_RTGS_SELL_SPREAD
           compute_line "gold_max" "GOLD MAX" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_MAX_MARGIN $GOLD_MAX_BUY_SPREAD $GOLD_MAX_SELL_SPREAD
 
-          # Silver lines (only if silver base is available)
           if [ -n "${BASE_SILVER_PER_G:-}" ] && [ "${BASE_SILVER_PER_G}" != "" ] && [ "${BASE_SILVER_PER_G}" != "null" ]; then
             compute_line "silver_refinery" "SILVER REFINERY 99 PLUS CASH BHAV" "${BASE_SILVER_PER_G}" 99.0 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN $SILVER_REFINERY_BUY_SPREAD $SILVER_REFINERY_SELL_SPREAD
             compute_line "silver_999_silcut_cash" "SILVER 999 SILCUT CASH BHAV" "${BASE_SILVER_PER_G}" 99.9 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN $SILVER_REFINERY_BUY_SPREAD $SILVER_REFINERY_SELL_SPREAD
@@ -241,7 +220,6 @@ jobs:
             jq -n '{key:"silver_max", label:"SILVER MAX", unit:"1000 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_max.json
           fi
 
-          # Basic gold prices (GST & Making Extra) using conversions from 24k
           GOLD22=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 22/24}")
           GOLD20=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 20/24}")
           GOLD18=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 18/24}")
@@ -254,15 +232,12 @@ jobs:
           compute_line "gold_14k_basic" "14 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD14" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
           compute_line "gold_10k_basic" "10 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD10" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
 
-          # Collate tmp files into final JSON array
           jq -s '.' tmp_rate_*.json > data/rates.json || true
 
-          # Add top-level metadata and wrap into { updated, source, items: [...] }
           UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
           jq --arg updated "$UPDATED" --arg source "$SRC" '. as $arr | {updated:$updated, source:$source, items:$arr}' data/rates.json > data/rates_with_meta.json
           mv data/rates_with_meta.json data/rates.json
 
-          # cleanup
           rm -f tmp_rate_*.json || true
 
           echo "Wrote data/rates.json (items: $(jq '.items | length' data/rates.json))"
