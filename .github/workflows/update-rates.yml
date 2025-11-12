@@ -40,6 +40,21 @@ jobs:
           echo "${XAU_RAW}" > /tmp/xau.json || true
           echo "${XAG_RAW}" > /tmp/xag.json || true
 
+          # Extract price per troy ounce (INR)
+          GOLD_OZ=$(echo "$XAU_RAW" | jq -r '.price // empty')
+          SILVER_OZ=$(echo "$XAG_RAW" | jq -r '.price // empty' 2>/dev/null || true)
+
+          # Convert to INR per gram
+          GOLD_PER_GRAM=$(echo "scale=8; ${GOLD_OZ:-0} / $OUNCE_TO_GRAM" | bc -l)
+          SILVER_PER_GRAM=""
+          if [ -n "${SILVER_OZ:-}" ] && [ "${SILVER_OZ}" != "null" ]; then
+            SILVER_PER_GRAM=$(echo "scale=8; ${SILVER_OZ} / $OUNCE_TO_GRAM" | bc -l)
+          fi
+
+          API_TS=$(echo "$XAU_RAW" | jq -r '.timestamp // empty')
+          SRC="GoldAPI (.price → INR/gram)"
+
+
           G24=$(echo "$XAU_RAW" | jq -r '.price_gram_24k // empty')
           if [ -z "${G24}" ] || [ "${G24}" = "null" ]; then
             OZ=$(echo "$XAU_RAW" | jq -r '.price // empty')
@@ -78,6 +93,8 @@ jobs:
 
           src="GoldAPI (XAU/XAG -> INR)"
 
+          echo "gold_per_gram=${GOLD_PER_GRAM}" >> "$GITHUB_OUTPUT"
+          echo "silver_per_gram=${SILVER_PER_GRAM:-}" >> "$GITHUB_OUTPUT"
           echo "gold24k=${gold24k_int}" >> "$GITHUB_OUTPUT"
           echo "gold24k_raw=${G24:-}" >> "$GITHUB_OUTPUT"
           echo "gold22k_raw=${G22_RAW:-}" >> "$GITHUB_OUTPUT"
@@ -237,6 +254,18 @@ jobs:
           UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
           jq --arg updated "$UPDATED" --arg source "$SRC" '. as $arr | {updated:$updated, source:$source, items:$arr}' data/rates.json > data/rates_with_meta.json
           mv data/rates_with_meta.json data/rates.json
+
+          # --- Add these two lines before you collate tmp_rate_*.json ---
+          jq -n --arg g "${{ steps.goldapi.outputs.gold_per_gram }}" \
+                '{key:"gold_price_per_gram", label:"GOLD SPOT PRICE (per g)", unit:"1 g", buy:($g|tonumber), sell:($g|tonumber)}' \
+                > tmp_rate_gold_spot.json
+          
+          if [ -n "${{ steps.goldapi.outputs.silver_per_gram }}" ] && [ "${{ steps.goldapi.outputs.silver_per_gram }}" != "null" ]; then
+            jq -n --arg s "${{ steps.goldapi.outputs.silver_per_gram }}" \
+                  '{key:"silver_price_per_gram", label:"SILVER SPOT PRICE (per g)", unit:"1 g", buy:($s|tonumber), sell:($s|tonumber)}' \
+                  > tmp_rate_silver_spot.json
+          fi
+
 
           rm -f tmp_rate_*.json || true
 
