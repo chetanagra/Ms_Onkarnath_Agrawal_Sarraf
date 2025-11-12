@@ -1,8 +1,9 @@
-name: Update gold/silver rates (GoldAPI ↔ MetalpriceAPI)
+name: Update gold/silver (GoldAPI only, 2x/weekday, MCX parity)
 
 on:
   schedule:
-    - cron: "0 */4 * * *"   # every 4 hours
+    - cron: "30 3 * * 1-5"     # 09:00 IST Mon–Fri
+    - cron: "30 12 * * 1-5"    # 18:00 IST Mon–Fri
   workflow_dispatch:
 
 permissions:
@@ -12,8 +13,12 @@ jobs:
   fetch:
     runs-on: ubuntu-latest
     env:
-      OUNCE_TO_GRAM: "31.1034768"
       TZ: "Asia/Kolkata"
+      OUNCE_TO_GRAM: "31.1034768"
+      PURITY_NUM: "995"
+      PURITY_DEN: "999"
+      DUTY: "0.065"       # 5% BCD + 1% AIDC + 0.5% SWS
+      BANK: "0.001"       # 0.1% banking/logistics
 
     steps:
       - name: Checkout repo
@@ -24,151 +29,127 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq python3
 
-      - name: Select provider (alternate each run)
-        id: select
-        run: |
-          set -euo pipefail
-          rn=${GITHUB_RUN_NUMBER}
-          if [ $((rn % 2)) -eq 0 ]; then
-            echo "provider=goldapi" >> "$GITHUB_OUTPUT"
-          else
-            echo "provider=metalprice" >> "$GITHUB_OUTPUT"
-          fi
-
-      # -------- GoldAPI --------
-      - name: Fetch via GoldAPI
+      - name: Fetch via GoldAPI (XAU & XAG in INR)
         id: goldapi
-        if: steps.select.outputs.provider == 'goldapi'
         env:
           GOLDAPI_KEY: ${{ secrets.GOLDAPI_KEY }}
         run: |
           set -euo pipefail
           [ -z "${GOLDAPI_KEY:-}" ] && { echo "No GOLDAPI_KEY"; exit 1; }
+
           XAU_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAU/INR)
           XAG_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAG/INR)
-          POZ_G=$(echo "$XAU_JSON" | jq -r '.price // empty')  # INR per troy ounce
-          POZ_S=$(echo "$XAG_JSON" | jq -r '.price // empty')  # INR per troy ounce
-          [ -z "$POZ_G" ] && { echo "GoldAPI missing gold price"; exit 1; }
-          export POZ_G POZ_S OUNCE_TO_GRAM
-          GOLD24=$(python3 -c 'import os; print(int(round(float(os.environ["POZ_G"])/float(os.environ["OUNCE_TO_GRAM"]))))')
-          SILVER=$(python3 -c 'import os; print(int(round(float(os.environ.get("POZ_S","0"))/float(os.environ["OUNCE_TO_GRAM"]))))')
-          echo "Computed (INR/oz): gold=$POZ_G silver=${POZ_S:-N/A}"
-          echo "gold24=$GOLD24" >> "$GITHUB_OUTPUT"
-          echo "silver=$SILVER" >> "$GITHUB_OUTPUT"
-          echo "source=GoldAPI" >> "$GITHUB_OUTPUT"
 
-      # -------- MetalpriceAPI --------
-      - name: Fetch via MetalpriceAPI
-        id: metalprice
-        if: steps.select.outputs.provider == 'metalprice'
-        env:
-          METALPRICE_KEY: ${{ secrets.METALPRICE_KEY }}
-        run: |
-          set -euo pipefail
-          [ -z "${METALPRICE_KEY:-}" ] && { echo "No METALPRICE_KEY"; exit 1; }
-          RESP=$(curl -fSs "https://api.metalpriceapi.com/v1/latest?api_key=$METALPRICE_KEY&base=INR&currencies=XAU,XAG")
-          R_XAU=$(echo "$RESP" | jq -r '.rates.XAU // empty')  # XAU per 1 INR
-          R_XAG=$(echo "$RESP" | jq -r '.rates.XAG // empty')  # XAG per 1 INR
-          [ -z "$R_XAU" ] && { echo "MetalpriceAPI missing XAU"; exit 1; }
-
-          # Invert: want INR per troy ounce
-          inv() { awk 'function inv(x){ if (x==0){exit 1} else {printf "%.8f", 1/x} } {inv($0)}'; }
-          POZ_G=$(printf "%s" "$R_XAU" | inv) || { echo "Invalid XAU rate (zero)"; exit 1; }
-          if [ -n "$R_XAG" ]; then POZ_S=$(printf "%s" "$R_XAG" | inv) || POZ_S=""; else POZ_S=""; fi
-
-          export POZ_G POZ_S OUNCE_TO_GRAM
-          GOLD24=$(python3 -c 'import os; print(int(round(float(os.environ["POZ_G"])/float(os.environ["OUNCE_TO_GRAM"]))))')
-          SILVER=$(python3 -c 'import os; print(int(round(float(os.environ.get("POZ_S","0"))/float(os.environ["OUNCE_TO_GRAM"]))))')
-          echo "Computed (INR/oz): gold=$POZ_G silver=${POZ_S:-N/A}"
-          echo "gold24=$GOLD24" >> "$GITHUB_OUTPUT"
-          echo "silver=$SILVER" >> "$GITHUB_OUTPUT"
-          echo "source=MetalpriceAPI" >> "$GITHUB_OUTPUT"
-
-      # -------- Fallback to the other provider if primary failed --------
-      - name: Fallback (try alternate provider)
-        id: fallback
-        if: failure()
-        env:
-          GOLDAPI_KEY: ${{ secrets.GOLDAPI_KEY }}
-          METALPRICE_KEY: ${{ secrets.METALPRICE_KEY }}
-        run: |
-          set -euo pipefail
-          sel='${{ steps.select.outputs.provider }}'
-          if [ "$sel" = "goldapi" ]; then
-            [ -z "${METALPRICE_KEY:-}" ] && { echo "No METALPRICE_KEY for fallback"; exit 1; }
-            RESP=$(curl -fSs "https://api.metalpriceapi.com/v1/latest?api_key=$METALPRICE_KEY&base=INR&currencies=XAU,XAG")
-            R_XAU=$(echo "$RESP" | jq -r '.rates.XAU // empty')
-            R_XAG=$(echo "$RESP" | jq -r '.rates.XAG // empty')
-            [ -z "$R_XAU" ] && { echo "Fallback MetalpriceAPI missing XAU"; exit 1; }
-            inv() { awk 'function inv(x){ if (x==0){exit 1} else {printf "%.8f", 1/x} } {inv($0)}'; }
-            POZ_G=$(printf "%s" "$R_XAU" | inv) || { echo "Invalid XAU rate (zero)"; exit 1; }
-            if [ -n "$R_XAG" ]; then POZ_S=$(printf "%s" "$R_XAG" | inv) || POZ_S=""; else POZ_S=""; fi
-            SRC="MetalpriceAPI"
-          else
-            [ -z "${GOLDAPI_KEY:-}" ] && { echo "No GOLDAPI_KEY for fallback"; exit 1; }
-            XAU_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAU/INR)
-            XAG_JSON=$(curl -fSs -H "x-access-token: $GOLDAPI_KEY" https://www.goldapi.io/api/XAG/INR)
-            POZ_G=$(echo "$XAU_JSON" | jq -r '.price // empty')
-            POZ_S=$(echo "$XAG_JSON" | jq -r '.price // empty')
-            SRC="GoldAPI"
-          fi
-          [ -z "$POZ_G" ] && { echo "Fallback provider missing price"; exit 1; }
-          export POZ_G POZ_S OUNCE_TO_GRAM
-          GOLD24=$(python3 -c 'import os; print(int(round(float(os.environ["POZ_G"])/float(os.environ["OUNCE_TO_GRAM"]))))')
-          SILVER=$(python3 -c 'import os; print(int(round(float(os.environ.get("POZ_S","0"))/float(os.environ["OUNCE_TO_GRAM"]))))')
-          echo "Computed (INR/oz): gold=$POZ_G silver=${POZ_S:-N/A}"
-          echo "gold24=$GOLD24" >> "$GITHUB_OUTPUT"
-          echo "silver=$SILVER" >> "$GITHUB_OUTPUT"
-          echo "source=$SRC" >> "$GITHUB_OUTPUT"
-
-      # -------- Consolidate whichever step succeeded --------
-      - name: Consolidate outputs
-        id: out
-        if: always()
-        run: |
-          set -euo pipefail
-          if [ "${{ steps.goldapi.outcome }}" = "success" ]; then
-            echo "G24=${{ steps.goldapi.outputs.gold24 }}" >> "$GITHUB_OUTPUT"
-            echo "SIL=${{ steps.goldapi.outputs.silver }}" >> "$GITHUB_OUTPUT"
-            echo "SRC=${{ steps.goldapi.outputs.source }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ steps.metalprice.outcome }}" = "success" ]; then
-            echo "G24=${{ steps.metalprice.outputs.gold24 }}" >> "$GITHUB_OUTPUT"
-            echo "SIL=${{ steps.metalprice.outputs.silver }}" >> "$GITHUB_OUTPUT"
-            echo "SRC=${{ steps.metalprice.outputs.source }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ steps.fallback.outcome }}" = "success" ]; then
-            echo "G24=${{ steps.fallback.outputs.gold24 }}" >> "$GITHUB_OUTPUT"
-            echo "SIL=${{ steps.fallback.outputs.silver }}" >> "$GITHUB_OUTPUT"
-            echo "SRC=${{ steps.fallback.outputs.source }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "No provider succeeded; keeping previous rates."
-            exit 2
+          # Prefer INR/gram; else derive from INR/oz
+          G_INR_G=$(echo "$XAU_JSON" | jq -r '.price_gram_24k // empty')
+          if [ -z "$G_INR_G" ] || [ "$G_INR_G" = "null" ]; then
+            POZ_G=$(echo "$XAU_JSON" | jq -r '.price // empty')  # ₹/oz
+            [ -z "$POZ_G" ] && { echo "GoldAPI missing gold price"; exit 1; }
+            export POZ_G OUNCE_TO_GRAM
+            G_INR_G=$(python3 - <<'PY'
+import os
+print(float(os.environ['POZ_G'])/float(os.environ['OUNCE_TO_GRAM']))
+PY
+)
           fi
 
-      - name: Validate numbers (basic sanity window)
+          S_INR_G=$(echo "$XAG_JSON" | jq -r '.price_gram_999 // empty')
+          if [ -z "$S_INR_G" ] || [ "$S_INR_G" = "null" ]; then
+            POZ_S=$(echo "$XAG_JSON" | jq -r '.price // empty') || true
+            if [ -n "${POZ_S:-}" ]; then
+              export POZ_S OUNCE_TO_GRAM
+              S_INR_G=$(python3 - <<'PY'
+import os
+print(float(os.environ['POZ_S'])/float(os.environ['OUNCE_TO_GRAM']))
+PY
+)
+            else
+              S_INR_G=""
+            fi
+          fi
+
+          TS=$(echo "$XAU_JSON" | jq -r '.timestamp // empty')
+
+          echo "gold24k_inr_per_g=$G_INR_G" >> "$GITHUB_OUTPUT"
+          echo "silver_inr_per_g_999=${S_INR_G:-}" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$TS" >> "$GITHUB_OUTPUT"
+
+      - name: Compute MCX-style parity (995 + duty + bank)
+        id: parity
         run: |
           set -euo pipefail
-          G24='${{ steps.out.outputs.G24 }}'
-          SIL='${{ steps.out.outputs.SIL }}'
-          if [ -z "$G24" ] || [ -z "$SIL" ]; then echo "Missing outputs"; exit 1; fi
-          if [ "$G24" -lt 100 ] || [ "$G24" -gt 20000 ]; then echo "Gold24 out of range: $G24"; exit 1; fi
-          if [ "$SIL" -lt 1 ] || [ "$SIL" -gt 2000 ]; then echo "Silver out of range: $SIL"; exit 1; fi
+          G_INR_G='${{ steps.goldapi.outputs.gold24k_inr_per_g }}'
+          [ -z "$G_INR_G" ] && { echo "Missing gold INR/gram"; exit 1; }
+          export G_INR_G PURITY_NUM PURITY_DEN DUTY BANK
+
+          python3 - <<'PY'
+import os, json
+g = float(os.environ['G_INR_G'])           # INR per gram (24k)
+purity = float(os.environ['PURITY_NUM'])/float(os.environ['PURITY_DEN'])  # 995/999
+duty   = float(os.environ['DUTY'])   # 0.065
+bank   = float(os.environ['BANK'])   # 0.001
+
+base_995 = g * purity
+landed_per_gram = base_995 * (1 + duty + bank)
+landed_per_10g  = landed_per_gram * 10
+landed_per_kg   = landed_per_gram * 1000
+
+out = {
+  "gold24k_inr_per_g": round(g, 4),
+  "base_995_inr_per_g": round(base_995, 4),
+  "landed_per_gram": round(landed_per_gram, 2),
+  "landed_per_10g": round(landed_per_10g, 2),
+  "landed_per_kg": round(landed_per_kg, 2)
+}
+print(json.dumps(out))
+PY
 
       - name: Write rates.json
         run: |
           set -euo pipefail
           mkdir -p data
-          GOLD24='${{ steps.out.outputs.G24 }}'
-          SILVER='${{ steps.out.outputs.SIL }}'
-          SRC='${{ steps.out.outputs.SRC }}'
-          GOLD22=$(python3 -c "print(int(round(${GOLD24} * 0.9167)))")
+          G_INR_G='${{ steps.goldapi.outputs.gold24k_inr_per_g }}'
+          S_INR_G='${{ steps.goldapi.outputs.silver_inr_per_g_999 }}'
+          TS='${{ steps.goldapi.outputs.timestamp }}'
+
+          PURITY_NUM=${PURITY_NUM}; PURITY_DEN=${PURITY_DEN}; DUTY=${DUTY}; BANK=${BANK}
+          BASE_995=$(python3 - <<PY
+g=${G_INR_G}; purity=${PURITY_NUM}/${PURITY_DEN}
+print(round(g*purity,4))
+PY
+)
+          LANDED_G=$(python3 - <<PY
+g=${G_INR_G}; purity=${PURITY_NUM}/${PURITY_DEN}; duty=${DUTY}; bank=${BANK}
+print(round((g*purity)*(1+duty+bank),2))
+PY
+)
+          LANDED_10G=$(python3 - <<PY
+x=${LANDED_G}
+print(round(x*10,2))
+PY
+)
+          LANDED_KG=$(python3 - <<PY
+x=${LANDED_G}
+print(round(x*1000,2))
+PY
+)
           UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
+
           cat > data/rates.json <<JSON
           {
-            "gold24k": ${GOLD24},
-            "gold22k": ${GOLD22},
-            "silver": ${SILVER},
+            "gold24k_inr_per_g": ${G_INR_G},
+            "silver_inr_per_g_999": ${S_INR_G:-0},
+            "parity": {
+              "purity_used": "${PURITY_NUM}/${PURITY_DEN}",
+              "duty": ${DUTY},
+              "bank": ${BANK},
+              "landed_per_gram": ${LANDED_G},
+              "landed_per_10g": ${LANDED_10G},
+              "landed_per_kg": ${LANDED_KG}
+            },
             "updated": "${UPDATED}",
-            "source": "${SRC} (spot per gram, INR)"
+            "goldapi_timestamp": ${TS},
+            "source": "GoldAPI (XAU & XAG)"
           }
           JSON
 
@@ -178,5 +159,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/rates.json
-          git commit -m "Auto-update rates (rotating providers + inversion fix)" || echo "No changes"
+          git commit -m "GoldAPI XAU+XAG, 2 runs/weekday, MCX parity (995, duty 6.5%, bank 0.1%)" || echo "No changes"
           git push
