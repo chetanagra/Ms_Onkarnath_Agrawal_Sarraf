@@ -1,4 +1,4 @@
-name: Update gold/silver (extended rates -> rates.json)
+name: Update gold/silver (MCX Metals.dev → rates.json)
 
 on:
   schedule:
@@ -14,289 +14,114 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TZ: "Asia/Kolkata"
-      OUNCE_TO_GRAM: "31.1034768"
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Install tools
+      - name: Install jq & bc
         run: |
           sudo apt-get update
           sudo apt-get install -y jq bc
 
-      - name: Fetch via GoldAPI (XAU & XAG in INR) and set outputs
-        id: goldapi
+      - name: Fetch via Metals.dev (MCX authority) and generate rates.json
         env:
-          GOLDAPI_KEY: ${{ secrets.GOLDAPI_KEY }}
-          OUNCE_TO_GRAM: ${{ env.OUNCE_TO_GRAM }}
+          METALS_API_KEY: ${{ secrets.METALS_API_KEY }}
         run: |
           set -euo pipefail
-          [ -z "${GOLDAPI_KEY:-}" ] && { echo "No GOLDAPI_KEY set in secrets"; exit 1; }
+          [ -z "${METALS_API_KEY:-}" ] && { echo "❌ No METALS_API_KEY found"; exit 1; }
 
-          XAU_RAW=$(curl -sSf -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAU/INR")
-          XAG_RAW=$(curl -sSf -H "x-access-token: $GOLDAPI_KEY" "https://www.goldapi.io/api/XAG/INR" || true)
+          echo "🔄 Fetching MCX INR/g rates from Metals.dev ..."
+          RESP=$(curl -sSf -G "https://api.metals.dev/v1/metal/authority" \
+            -H "Accept: application/json" \
+            --data-urlencode "api_key=${METALS_API_KEY}" \
+            --data-urlencode "authority=mcx" \
+            --data-urlencode "currency=INR" \
+            --data-urlencode "unit=g")
 
-          echo "${XAU_RAW}" > /tmp/xau.json || true
-          echo "${XAG_RAW}" > /tmp/xag.json || true
+          echo "$RESP" | jq '.' > /tmp/metals.json
 
-          # Extract price per troy ounce (INR)
-          GOLD_OZ=$(echo "$XAU_RAW" | jq -r '.price // empty')
-          SILVER_OZ=$(echo "$XAG_RAW" | jq -r '.price // empty' 2>/dev/null || true)
+          MCX_GOLD=$(jq -r '.rates.mcx_gold' /tmp/metals.json)
+          MCX_SILVER=$(jq -r '.rates.mcx_silver' /tmp/metals.json)
+          TS=$(jq -r '.timestamp' /tmp/metals.json)
+          SRC="Metals.dev (MCX authority → INR/g)"
 
-          # Convert to INR per gram
-          GOLD_PER_GRAM=$(echo "scale=8; ${GOLD_OZ:-0} / $OUNCE_TO_GRAM" | bc -l)
-          SILVER_PER_GRAM=""
-          if [ -n "${SILVER_OZ:-}" ] && [ "${SILVER_OZ}" != "null" ]; then
-            SILVER_PER_GRAM=$(echo "scale=8; ${SILVER_OZ} / $OUNCE_TO_GRAM" | bc -l)
-          fi
-
-          API_TS=$(echo "$XAU_RAW" | jq -r '.timestamp // empty')
-          SRC="GoldAPI (.price → INR/gram)"
-
-
-          G24=$(echo "$XAU_RAW" | jq -r '.price_gram_24k // empty')
-          if [ -z "${G24}" ] || [ "${G24}" = "null" ]; then
-            OZ=$(echo "$XAU_RAW" | jq -r '.price // empty')
-            if [ -n "${OZ}" ] && [ "${OZ}" != "null" ]; then
-              G24=$(echo "scale=8; $OZ / $OUNCE_TO_GRAM" | bc -l)
-            else
-              G24=""
-            fi
-          fi
-
-          G22_RAW=$(echo "$XAU_RAW" | jq -r '.price_gram_22k // empty')
-          API_PRICE=$(echo "$XAU_RAW" | jq -r '.price // empty')
-          API_LOW=$(echo "$XAU_RAW" | jq -r '.low_price // empty')
-          API_HIGH=$(echo "$XAU_RAW" | jq -r '.high_price // empty')
-          API_TS=$(echo "$XAU_RAW" | jq -r '.timestamp // empty')
-
-          SGR=$(echo "$XAG_RAW" | jq -r '.price_gram_999 // empty' 2>/dev/null || true)
-          if [ -z "${SGR:-}" ] || [ "${SGR}" = "null" ]; then
-            S_OZ=$(echo "$XAG_RAW" | jq -r '.price // empty' 2>/dev/null || true)
-            if [ -n "${S_OZ:-}" ] && [ "${S_OZ}" != "null" ]; then
-              SGR=$(echo "scale=8; $S_OZ / $OUNCE_TO_GRAM" | bc -l)
-            else
-              SGR=""
-            fi
-          fi
-
-          gold24k_int=""
-          if [ -n "${G24:-}" ] && [ "${G24}" != "null" ]; then
-            gold24k_int=$(printf "%.0f" "$(echo "$G24" | awk '{printf "%f",$0}')")
-          fi
-
-          silver_int=""
-          if [ -n "${SGR:-}" ] && [ "${SGR}" != "null" ]; then
-            silver_int=$(printf "%.0f" "$(echo "$SGR" | awk '{printf "%f",$0}')")
-          fi
-
-          src="GoldAPI (XAU/XAG -> INR)"
-
-          echo "gold_per_gram=${GOLD_PER_GRAM}" >> "$GITHUB_OUTPUT"
-          echo "silver_per_gram=${SILVER_PER_GRAM:-}" >> "$GITHUB_OUTPUT"
-          echo "gold24k=${gold24k_int}" >> "$GITHUB_OUTPUT"
-          echo "gold24k_raw=${G24:-}" >> "$GITHUB_OUTPUT"
-          echo "gold22k_raw=${G22_RAW:-}" >> "$GITHUB_OUTPUT"
-          echo "silver=${silver_int}" >> "$GITHUB_OUTPUT"
-          echo "silver_raw=${SGR:-}" >> "$GITHUB_OUTPUT"
-          echo "api_price=${API_PRICE:-}" >> "$GITHUB_OUTPUT"
-          echo "api_low=${API_LOW:-}" >> "$GITHUB_OUTPUT"
-          echo "api_high=${API_HIGH:-}" >> "$GITHUB_OUTPUT"
-          echo "timestamp=${API_TS:-}" >> "$GITHUB_OUTPUT"
-          echo "source=${src}" >> "$GITHUB_OUTPUT"
-
-      - name: Write rates.json (compute extended buy/sell lines)
-        run: |
-          set -euo pipefail
-          mkdir -p data
-
-          # grab outputs from fetch step into shell vars
-          GOLD24='${{ steps.goldapi.outputs.gold24k }}'
-          GOLD24_RAW='${{ steps.goldapi.outputs.gold24k_raw }}'
-          GOLD22_RAW='${{ steps.goldapi.outputs.gold22k_raw }}'
-          SILVER='${{ steps.goldapi.outputs.silver }}'
-          SILVER_RAW='${{ steps.goldapi.outputs.silver_raw }}'
-          API_PRICE='${{ steps.goldapi.outputs.api_price }}'
-          API_LOW='${{ steps.goldapi.outputs.api_low }}'
-          API_HIGH='${{ steps.goldapi.outputs.api_high }}'
-          TS='${{ steps.goldapi.outputs.timestamp }}'
-          SRC='${{ steps.goldapi.outputs.source }}'
-
-          # new: spot per-gram outputs from fetch step
-          GOLD_PER_GRAM='${{ steps.goldapi.outputs.gold_per_gram }}'
-          SILVER_PER_GRAM='${{ steps.goldapi.outputs.silver_per_gram }}'
-
-          if [ -z "${GOLD24:-}" ] || [ "${GOLD24}" = "null" ]; then GOLD24=0; fi
-          if [ -z "${SILVER:-}" ] || [ "${SILVER}" = "null" ]; then SILVER=""; fi
-
-          compute_line() {
-            local key="$1"; shift
-            local label="$1"; shift
-            local base="$1"; shift
-            local purity="$1"; shift
-            local scale="$1"; shift
-            local margin="$1"; shift
-            local bspread="$1"; shift
-            local sspread="$1"; shift
-
-            rawBase=$(awk "BEGIN{printf \"%.6f\", ($base * ($purity/100) * $scale)}")
-            mid=$(awk "BEGIN{printf \"%.6f\", ($rawBase * (1 + $margin))}")
-            buy=$(awk "BEGIN{printf \"%.0f\", ($mid * (1 - $bspread))}")
-            sell=$(awk "BEGIN{printf \"%.0f\", ($mid * (1 + $sspread))}")
-            mid_i=$(awk "BEGIN{printf \"%.0f\", $mid}")
-            raw_i=$(awk "BEGIN{printf \"%.0f\", $rawBase}")
-
-            if [ -n "${API_PRICE:-}" ] && [ "${API_PRICE}" != "null" ] && [ -n "${API_LOW:-}" ] && [ -n "${API_HIGH:-}" ]; then
-              lowRatio=$(awk "BEGIN{printf \"%.6f\", $API_LOW / $API_PRICE}")
-              highRatio=$(awk "BEGIN{printf \"%.6f\", $API_HIGH / $API_PRICE}")
-              lowVal=$(awk "BEGIN{printf \"%.6f\", $rawBase * $lowRatio * (1 + $margin) * (1 - $bspread)}")
-              highVal=$(awk "BEGIN{printf \"%.6f\", $rawBase * $highRatio * (1 + $margin) * (1 + $sspread)}")
-              low_i=$(awk "BEGIN{printf \"%.0f\", $lowVal}")
-              high_i=$(awk "BEGIN{printf \"%.0f\", $highVal}")
-            else
-              low_i=null
-              high_i=null
-            fi
-
-            jq -n \
-              --arg key "$key" \
-              --arg label "$label" \
-              --arg unit "${scale} g" \
-              --argjson raw_base "$raw_i" \
-              --argjson mid "$mid_i" \
-              --argjson buy "$buy" \
-              --argjson sell "$sell" \
-              --arg low "$low_i" \
-              --arg high "$high_i" \
-              '{
-                key: $key,
-                label: $label,
-                unit: $unit,
-                raw_base: $raw_base,
-                mid: $mid,
-                buy: $buy,
-                sell: $sell,
-                low: (if $low == "null" then null else ($low|tonumber) end),
-                high: (if $high == "null" then null else ($high|tonumber) end)
-              }' > "tmp_rate_$key.json"
-          }
-
-          # RULES (tweak these to match your shop's pricing policy)
-          GOLD_99_5_CASH_MARGIN=0.06
-          GOLD_99_5_CASH_BUY_SPREAD=0.0025
-          GOLD_99_5_CASH_SELL_SPREAD=0.0025
-
-          GOLD_99_5_RTGS_MARGIN=0.04
-          GOLD_99_5_RTGS_BUY_SPREAD=0.0030
-          GOLD_99_5_RTGS_SELL_SPREAD=0.0030
-
-          GOLD_MAX_MARGIN=0.03
-          GOLD_MAX_BUY_SPREAD=0.0020
-          GOLD_MAX_SELL_SPREAD=0.0020
-
-          SILVER_REFINERY_MARGIN=0.05
-          SILVER_REFINERY_BUY_SPREAD=0.0030
-          SILVER_REFINERY_SELL_SPREAD=0.0030
-
-          SILVER_999_RTGS_MARGIN=0.035
-          SILVER_999_RTGS_BUY_SPREAD=0.0025
-          SILVER_999_RTGS_SELL_SPREAD=0.0025
-
-          SILVER_MAX_MARGIN=0.03
-          SILVER_MAX_BUY_SPREAD=0.0020
-          SILVER_MAX_SELL_SPREAD=0.0020
-
-          BASIC_MARGIN=0.0
-          BASIC_BUY_SPREAD=0.0
-          BASIC_SELL_SPREAD=0.0
+          [ -z "$MCX_GOLD" ] && MCX_GOLD=0
+          [ -z "$MCX_SILVER" ] && MCX_SILVER=0
 
           GOLD_SCALE=10
           SILVER_SCALE=1000
 
-          # Prefer raw float outputs if available
-          if [ -n "${GOLD24_RAW:-}" ] && [ "${GOLD24_RAW}" != "null" ]; then
-            BASE_GOLD_PER_G="${GOLD24_RAW}"
-          else
-            BASE_GOLD_PER_G="${GOLD24}"
-          fi
-
-          if [ -n "${SILVER_RAW:-}" ] && [ "${SILVER_RAW}" != "null" ]; then
-            BASE_SILVER_PER_G="${SILVER_RAW}"
-          else
-            BASE_SILVER_PER_G="${SILVER}"
-          fi
-
-          # ---------------------------
-          # Generate computed items (same as before)
-          # ---------------------------
-          compute_line "gold_99_50_cash" "GOLD 99.50 CASH BHAV" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_99_5_CASH_MARGIN $GOLD_99_5_CASH_BUY_SPREAD $GOLD_99_5_CASH_SELL_SPREAD
-          compute_line "gold_99_50_rtgs" "GOLD 99.50 RTGS BHAV 10-20-50 GM" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_99_5_RTGS_MARGIN $GOLD_99_5_RTGS_BUY_SPREAD $GOLD_99_5_RTGS_SELL_SPREAD
-          compute_line "gold_max" "GOLD MAX" "${BASE_GOLD_PER_G}" 99.5 "$GOLD_SCALE" $GOLD_MAX_MARGIN $GOLD_MAX_BUY_SPREAD $GOLD_MAX_SELL_SPREAD
-
-          if [ -n "${BASE_SILVER_PER_G:-}" ] && [ "${BASE_SILVER_PER_G}" != "" ] && [ "${BASE_SILVER_PER_G}" != "null" ]; then
-            compute_line "silver_refinery" "SILVER REFINERY 99 PLUS CASH BHAV" "${BASE_SILVER_PER_G}" 99.0 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN $SILVER_REFINERY_BUY_SPREAD $SILVER_REFINERY_SELL_SPREAD
-            compute_line "silver_999_silcut_cash" "SILVER 999 SILCUT CASH BHAV" "${BASE_SILVER_PER_G}" 99.9 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN $SILVER_REFINERY_BUY_SPREAD $SILVER_REFINERY_SELL_SPREAD
-            compute_line "silver_999_rtgs" "SILVER SILCUT 999 RTGS BHAV 1-2-3-5 KG" "${BASE_SILVER_PER_G}" 99.9 "$SILVER_SCALE" $SILVER_999_RTGS_MARGIN $SILVER_999_RTGS_BUY_SPREAD $SILVER_999_RTGS_SELL_SPREAD
-            compute_line "silver_max" "SILVER MAX" "${BASE_SILVER_PER_G}" 99.9 "$SILVER_SCALE" $SILVER_MAX_MARGIN $SILVER_MAX_BUY_SPREAD $SILVER_MAX_SELL_SPREAD
-          else
-            jq -n '{key:"silver_refinery", label:"SILVER REFINERY 99 PLUS CASH BHAV", unit:"1000 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_refinery.json
-            jq -n '{key:"silver_999_silcut_cash", label:"SILVER 999 SILCUT CASH BHAV", unit:"1000 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_999_silcut_cash.json
-            jq -n '{key:"silver_999_rtgs", label:"SILVER SILCUT 999 RTGS BHAV 1-2-3-5 KG", unit:"1000 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_999_rtgs.json
-            jq -n '{key:"silver_max", label:"SILVER MAX", unit:"1000 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_max.json
-          fi
-
-          # BASIC GOLD PRICES: 22k 20k 18k 14k 10k (GST & Making Extra)
-          GOLD22=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 22/24}")
-          GOLD20=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 20/24}")
-          GOLD18=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 18/24}")
-          GOLD14=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 14/24}")
-          GOLD10=$(awk "BEGIN{printf \"%.8f\", ${BASE_GOLD_PER_G} * 10/24}")
-
-          compute_line "gold_22k_basic" "22 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD22" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
-          compute_line "gold_20k_basic" "20 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD20" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
-          compute_line "gold_18k_basic" "18 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD18" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
-          compute_line "gold_14k_basic" "14 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD14" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
-          compute_line "gold_10k_basic" "10 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$GOLD10" 100 "$GOLD_SCALE" $BASIC_MARGIN $BASIC_BUY_SPREAD $BASIC_SELL_SPREAD
-
-          # ---------------------------
-          # create spot tmp files NOW (before collating)
-          # ---------------------------
-          if [ -n "${GOLD_PER_GRAM:-}" ] && [ "${GOLD_PER_GRAM}" != "" ] && [ "${GOLD_PER_GRAM}" != "null" ]; then
-            jq -n --arg g "${GOLD_PER_GRAM}" \
-              '{key:"gold_price_per_gram", label:"GOLD SPOT (per g)", unit:"1 g", raw_base:( $g|tonumber ), mid:( $g|tonumber ), buy:( $g|tonumber ), sell:( $g|tonumber ), low:null, high:null }' \
-              > tmp_rate_gold_spot.json
-          else
-            jq -n '{key:"gold_price_per_gram", label:"GOLD SPOT (per g)", unit:"1 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_gold_spot.json
-          fi
-
-          if [ -n "${SILVER_PER_GRAM:-}" ] && [ "${SILVER_PER_GRAM}" != "" ] && [ "${SILVER_PER_GRAM}" != "null" ]; then
-            jq -n --arg s "${SILVER_PER_GRAM}" \
-              '{key:"silver_price_per_gram", label:"SILVER SPOT (per g)", unit:"1 g", raw_base:( $s|tonumber ), mid:( $s|tonumber ), buy:( $s|tonumber ), sell:( $s|tonumber ), low:null, high:null }' \
-              > tmp_rate_silver_spot.json
-          else
-            jq -n '{key:"silver_price_per_gram", label:"SILVER SPOT (per g)", unit:"1 g", raw_base:null, mid:null, buy:null, sell:null, low:null, high:null }' > tmp_rate_silver_spot.json
-          fi
-
-          # Collate tmp files into final JSON array (this now includes spot files)
-          jq -s '.' tmp_rate_*.json > data/rates.json || true
-
-          # Add top-level metadata and wrap into { updated, source, items: [...] }
-          UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
-          jq --arg updated "$UPDATED" --arg source "$SRC" '. as $arr | {updated:$updated, source:$source, items:$arr}' data/rates.json > data/rates_with_meta.json
-          mv data/rates_with_meta.json data/rates.json
-
-          # cleanup tmp files
+          mkdir -p data
           rm -f tmp_rate_*.json || true
 
-          echo "Wrote data/rates.json (items: $(jq '.items | length' data/rates.json))"
+          compute_line() {
+            local key="$1"; local label="$2"; local base="$3"; local purity="$4"
+            local scale="$5"; local margin="$6"; local bspread="$7"; local sspread="$8"
+            local rawBase=$(awk "BEGIN{printf \"%.6f\", ($base * ($purity/100) * $scale)}")
+            local mid=$(awk "BEGIN{printf \"%.6f\", ($rawBase * (1 + $margin))}")
+            local buy=$(awk "BEGIN{printf \"%.0f\", ($mid * (1 - $bspread))}")
+            local sell=$(awk "BEGIN{printf \"%.0f\", ($mid * (1 + $sspread))}")
+            jq -n \
+              --arg key "$key" \
+              --arg label "$label" \
+              --arg unit "${scale} g" \
+              --argjson buy "$buy" \
+              --argjson sell "$sell" \
+              '{key:$key,label:$label,unit:$unit,buy:$buy,sell:$sell}'
+          }
 
+          # --- Base (from MCX)
+          GOLD_BASE=$MCX_GOLD
+          SILVER_BASE=$MCX_SILVER
+
+          # --- Margins / spreads ---
+          GOLD_99_5_CASH_MARGIN=0.06
+          GOLD_99_5_RTGS_MARGIN=0.04
+          SILVER_REFINERY_MARGIN=0.05
+          SILVER_999_RTGS_MARGIN=0.035
+          BASIC_MARGIN=0.00
+
+          # --- Compute all items ---
+          compute_line "gold_max" "GOLD MAX (MCX GOLD)" "$GOLD_BASE" 99.5 "$GOLD_SCALE" 0 0 0 > tmp_rate_gold_max.json
+          compute_line "silver_max" "SILVER MAX (MCX SILVER)" "$SILVER_BASE" 99.9 "$SILVER_SCALE" 0 0 0 > tmp_rate_silver_max.json
+
+          compute_line "gold_99_50_cash" "GOLD 99.50 CASH BHAV" "$GOLD_BASE" 99.5 "$GOLD_SCALE" $GOLD_99_5_CASH_MARGIN 0.0025 0.0025 > tmp_rate_gold_9950_cash.json
+          compute_line "gold_99_50_rtgs" "GOLD 99.50 RTGS BHAV 10-20-50 GM" "$GOLD_BASE" 99.5 "$GOLD_SCALE" $GOLD_99_5_RTGS_MARGIN 0.003 0.003 > tmp_rate_gold_9950_rtgs.json
+          compute_line "silver_refinery" "SILVER REFINERY 99 PLUS CASH BHAV" "$SILVER_BASE" 99.0 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN 0.003 0.003 > tmp_rate_silver_refinery.json
+          compute_line "silver_999_cash" "SILVER 999 SILCUT CASH BHAV" "$SILVER_BASE" 99.9 "$SILVER_SCALE" $SILVER_REFINERY_MARGIN 0.003 0.003 > tmp_rate_silver_999_cash.json
+          compute_line "silver_999_rtgs" "SILVER SILCUT 999 RTGS BHAV 1-2-3-5 KG" "$SILVER_BASE" 99.9 "$SILVER_SCALE" $SILVER_999_RTGS_MARGIN 0.0025 0.0025 > tmp_rate_silver_999_rtgs.json
+
+          # Basic gold prices
+          G22=$(awk "BEGIN{printf \"%.8f\", $GOLD_BASE * 22/24}")
+          G20=$(awk "BEGIN{printf \"%.8f\", $GOLD_BASE * 20/24}")
+          G18=$(awk "BEGIN{printf \"%.8f\", $GOLD_BASE * 18/24}")
+          G14=$(awk "BEGIN{printf \"%.8f\", $GOLD_BASE * 14/24}")
+          G10=$(awk "BEGIN{printf \"%.8f\", $GOLD_BASE * 10/24}")
+
+          compute_line "gold_22k_basic" "22 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$G22" 100 "$GOLD_SCALE" $BASIC_MARGIN 0 0 > tmp_rate_gold_22.json
+          compute_line "gold_20k_basic" "20 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$G20" 100 "$GOLD_SCALE" $BASIC_MARGIN 0 0 > tmp_rate_gold_20.json
+          compute_line "gold_18k_basic" "18 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$G18" 100 "$GOLD_SCALE" $BASIC_MARGIN 0 0 > tmp_rate_gold_18.json
+          compute_line "gold_14k_basic" "14 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$G14" 100 "$GOLD_SCALE" $BASIC_MARGIN 0 0 > tmp_rate_gold_14.json
+          compute_line "gold_10k_basic" "10 K GOLD BASIC PRICE (GST & MAKING EXTRA)" "$G10" 100 "$GOLD_SCALE" $BASIC_MARGIN 0 0 > tmp_rate_gold_10.json
+
+          # Combine all
+          jq -s '.' tmp_rate_*.json > data/tmp_rates.json
+          UPDATED=$(TZ=Asia/Kolkata date "+%Y-%m-%d %H:%M IST")
+
+          jq --arg updated "$UPDATED" \
+             --arg source "$SRC" \
+             --arg ts "$TS" \
+             '. as $arr | {updated:$updated, timestamp:$ts, source:$source, items:$arr}' \
+             data/tmp_rates.json > data/rates.json
+
+          echo "✅ Final rates.json generated:"
+          jq '.items | length' data/rates.json
 
       - name: Commit & push data/rates.json
         run: |
-          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add data/rates.json || true
-          git commit -m "Auto-update extended rates.json" || echo "No changes to commit"
-          git push origin HEAD:$(git rev-parse --abbrev-ref HEAD) || true
+          git add data/rates.json
+          git commit -m "Auto-update Metals.dev MCX rates.json" || echo "No changes"
+          git push
