@@ -114,7 +114,7 @@ jobs:
             > tmp_rate_silver_rtgs.json
 
           # BASIC GOLD PRICES (PER GRAM)
-          for k in 22 20 18 14 10; do
+          for k in 22 20 18 14 9; do
             VAL=$(awk "BEGIN{printf \"%.2f\", $MCX_GOLD * ($k/24) * 10}")
             jq -n \
               --arg key "gold_${k}k_basic" \
