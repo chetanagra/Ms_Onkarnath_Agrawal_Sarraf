@@ -2,16 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Home — M/s Onkarnath Agrawal Sarraf (Bachcha Sarraf )</title>
+  <title>Home — M/s Onkarnath Agrawal Sarraf (Bachcha Sarraf)</title>
   <link rel="icon" type="image/x-icon" href="assets/img/logo.png">
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <meta name="description" content="Fine jewellery — gold, diamond, silver.">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="assets/css/styles.css" />
 </head>
+
 <body class="bg-white text-slate-900">
 
-  <!-- Header -->
+<!-- Header -->
 <header class="sticky top-0 z-40 bg-white/90 backdrop-blur border-b">
   <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
     <a href="index.html" class="flex items-center gap-3 text-2xl font-serif text-yellow-800 tracking-wide">
@@ -26,10 +27,10 @@
   </div>
 </header>
 
-<!-- EXTENDED GOLD & SILVER RATES -->
+<!-- RATES SECTION -->
 <section class="border-t border-b bg-gradient-to-r from-yellow-50 via-white to-yellow-50 backdrop-blur">
   <div class="max-w-6xl mx-auto px-4 py-12 md:py-16 min-h-[50vh]">
-    
+
     <div class="text-center mb-10">
       <h2 class="text-3xl md:text-5xl font-semibold leading-tight">Today’s Extended Gold & Silver Rates</h2>
       <p class="mt-4 text-slate-600 text-base md:text-lg">
@@ -42,7 +43,7 @@
     <div id="extended-rates" class="grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5"></div>
 
     <div class="text-xs text-slate-500 text-center mt-6">
-      *Gold displayed per <strong>10 g</strong>. Silver displayed per <strong>1 kg</strong>. Values are indicative.
+      *Gold values shown for <strong>10 g</strong>. Silver values shown for <strong>1 kg</strong>.
     </div>
   </div>
 </section>
@@ -57,6 +58,7 @@
       <a href="contact.html" class="px-5 py-3 rounded-xl border">Book a Visit</a>
     </div>
   </div>
+
   <img src="assets/img/hero.jpg" class="rounded-2xl w-full object-cover" alt="Hero">
 </section>
 
@@ -69,7 +71,7 @@
 
 <!-- Scripts -->
 <script>
-  // Robust CSV parser (handles quotes/commas/newlines)
+  // CSV Parser
   function parseCSV(text) {
     const rows = [];
     let i = 0, cur = '', row = [], inQuotes = false;
@@ -78,10 +80,11 @@
       if (c === '"') {
         if (inQuotes && text[i+1] === '"') { cur += '"'; i++; }
         else inQuotes = !inQuotes;
-      } else if (c === ',' && !inQuotes) { row.push(cur); cur = ''; }
-      else if ((c === '\n' || c === '\r') && !inQuotes) {
-        if (cur !== '' || row.length) { row.push(cur); rows.push(row); cur=''; row=[]; }
-      } else { cur += c; }
+      } else if (c === ',' && !inQuotes) {
+        row.push(cur); cur = '';
+      } else if ((c === '\n' || c === '\r') && !inQuotes) {
+        if (cur !== '' || row.length) { row.push(cur); rows.push(row); cur = ''; row = []; }
+      } else cur += c;
       i++;
     }
     if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
@@ -93,190 +96,67 @@
     const parsed = parseCSV(t.trim());
     const head = parsed[0].map(h=>h.trim());
     return parsed.slice(1)
-      .filter(r => r && r.length && r.some(cell => (cell||'').trim() !== ''))
+      .filter(r => r.some(cell => (cell||'').trim() !== ''))
       .map(r => Object.fromEntries(head.map((h,i)=>[h, (r[i]||'').trim()])));
   }
 
-  function purityFromKarat(k){
-    const n = Number(k||0);
-    if (n === 24) return '24K';
-    if (n === 22) return '22K';
-    if (n === 18) return '18K';
-    return '';
-  }
-  function metalFromRow(karat, stone){
-    const k = Number(karat||0);
-    if (k > 0) return 'Gold';
-    if ((stone||'').toLowerCase() === 'diamond') return 'Diamond';
-    return 'Silver';
-  }
-
-  // Load products CSV and render featured
-  (async () => {
-    try {
-      const rows = await loadCSV('data/products.csv');
-      const items = rows.map(x => ({
-        id: x.id,
-        name: x.name,
-        category: (x.category||'').toLowerCase(),
-        karat: Number(x.karat||0),
-        purity: purityFromKarat(x.karat),
-        metal: metalFromRow(x.karat, x.stone),
-        weight_g: Number(x.weight_g||0),
-        image_url: x.image_url || 'assets/img/placeholder.webp',
-        description: x.description || ''
-      }));
-
-      const featuredEl = document.getElementById('featured');
-      const emptyEl = document.getElementById('featured-empty');
-
-      const newest = items
-        .sort((a,b) => (Number(b.id||0) - Number(a.id||0)))
-        .slice(0, 8); // show up to 8 newest
-
-      if (!newest.length) {
-        emptyEl.classList.remove('hidden');
-        return;
-      }
-
-      featuredEl.innerHTML = newest.map(x => `
-        <a href="product.html?id=${encodeURIComponent(x.id)}"
-           class="block rounded-2xl border hover:shadow transition overflow-hidden bg-white">
-          <img src="${x.image_url}" alt="${x.name}" loading="lazy"
-               onerror="this.onerror=null;this.src='assets/img/placeholder.webp';"
-               class="w-full aspect-square object-cover" />
-          <div class="p-3">
-            <h3 class="font-semibold truncate" title="${x.name}">${x.name}</h3>
-            <p class="text-sm text-slate-600">
-              ${x.metal}${x.purity ? ' ' + x.purity : ''} • ${x.weight_g || 0}g
-            </p>
-          </div>
-        </a>
-      `).join('');
-    } catch (e) {
-      // if products CSV missing, silently ignore
-      console.warn('Products load failed', e);
-    }
-  })();
-
-  // Helper to format INR
+  // Helper INR formatting
   function fmtINR(n){
-    if (n == null || n === 0 || Number.isNaN(Number(n))) return '–';
-    return '₹' + Number(n).toLocaleString('en-IN');
+    return n == null || Number.isNaN(Number(n)) ? '–'
+      : '₹' + Number(n).toLocaleString('en-IN');
   }
 
-  // Normalize unit for display: prefer "1 kg" instead of "1000 g"
-  function prettyUnit(unit) {
-    if (!unit) return '';
-    const u = unit.trim();
-    if (u === '1000 g' || u === '1000g') return '1 kg';
+  // Gold 10g, Silver 1kg pretty units
+  function prettyUnit(u){
+    if (!u) return '';
+    if (u.trim() === "1000 g") return "1 kg";
     return u;
   }
 
-  // Reorder items to place GOLD MAX and SILVER MAX first (in that order)
-  function sortWithMaxFirst(items) {
+  // Put GOLD MAX and SILVER MAX first
+  function sortWithMaxFirst(items){
     const goldMax = items.filter(i => /GOLD\s*MAX/i.test(i.label));
     const silverMax = items.filter(i => /SILVER\s*MAX/i.test(i.label));
-    const others = items.filter(i => !/GOLD\s*MAX/i.test(i.label) && !/SILVER\s*MAX/i.test(i.label));
+    const others = items.filter(i => !/MAX/i.test(i.label));
     return [...goldMax, ...silverMax, ...others];
   }
 
-  // Render rates from data/rates.json
+  // Load RATES.JSON
   (async () => {
     const grid = document.getElementById('extended-rates');
     const updatedEl = document.getElementById('rates-updated');
 
     try {
-      const resp = await fetch('data/rates.json', { cache: 'no-cache' });
-      if (!resp.ok) throw new Error('rates.json fetch failed');
-      const d = await resp.json();
+      const d = await fetch("data/rates.json", {cache:"no-cache"}).then(r => r.json());
 
-      // metadata
-      const updatedText = d.updated || '';
-      const sourceText = d.source || '';
-      updatedEl.textContent = updatedText ? `Updated ${updatedText} — Source: ${sourceText}` : `Source: ${sourceText}`;
+      updatedEl.textContent = d.updated ? `Updated ${d.updated} — Source: ${d.source}` : '';
 
-      // New format: items array
-      if (Array.isArray(d.items) && d.items.length) {
+      if (Array.isArray(d.items)) {
         const ordered = sortWithMaxFirst(d.items);
 
         grid.innerHTML = ordered.map(item => {
-          const label = item.label || item.key || 'Rate';
-          const buy = (item.buy != null) ? fmtINR(item.buy) : '–';
-          const sell = (item.sell != null) ? fmtINR(item.sell) : '–';
-          const unit = prettyUnit(item.unit || '');
-          const isMax = /MAX/i.test(item.label || '');
-          // style for MAX items
-          const outerClass = isMax
-            ? 'rounded-2xl border-2 border-yellow-400 shadow-2xl bg-yellow-50 p-5 transition'
-            : 'rounded-2xl border p-5 bg-white/80 hover:shadow-lg transition';
-          const accent = isMax ? 'text-yellow-800' : 'text-slate-800';
+          const isMax = /MAX/i.test(item.label || "");
+          const cardClass = isMax
+            ? "rounded-2xl border-2 border-yellow-400 shadow-xl bg-yellow-50 p-5"
+            : "rounded-2xl border p-5 bg-white/80 hover:shadow-lg transition";
 
-          // For gold (unit contains "10") show "per 10 g", for silver "1 kg" will display
           return `
-            <div class="${outerClass}">
-              <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">${label}</div>
-              <div class="text-2xl md:text-3xl font-bold ${accent}">${buy}</div>
-              <div class="text-sm text-slate-600 mt-1">Sell ${sell}</div>
-              <div class="text-xs text-slate-400 mt-2">${unit}</div>
+            <div class="${cardClass}">
+              <div class="text-xs uppercase tracking-wide text-slate-500 mb-1">${item.label}</div>
+              <div class="text-2xl md:text-3xl font-bold ${isMax ? 'text-yellow-800':'text-slate-800'}">
+                ${fmtINR(item.buy)}
+              </div>
+              <div class="text-sm text-slate-600 mt-1">Sell ${fmtINR(item.sell)}</div>
+              <div class="text-xs text-slate-400 mt-2">${prettyUnit(item.unit)}</div>
             </div>
           `;
         }).join('');
-        return;
       }
 
-      // Back-compat: old simple JSON with gold24k/gold22k/silver fields (rare)
-      if (d.gold24k || d.gold22k || d.silver) {
-        const r24 = Number(d.gold24k || 0);
-        const r22 = Number(d.gold22k || Math.round(r24 * 0.9167));
-        const rs  = Number(d.silver || 0);
-        const cfg = {
-          bank_cash_spread_pct_gold: 0.15,
-          bank_cash_spread_pct_silver: 0.20,
-          k22_factor: 0.9167,
-          k20_factor: 0.8333,
-          k18_factor: 0.7500,
-          mcx_gold_lot_g: 10,
-          mcx_silver_lot_g: 1000,
-          mcx_gold_premium_pct: 0.00,
-          mcx_silver_premium_pct: 0.00
-        };
-        const gold_bank   = Math.round(r24 * (1 + cfg.bank_cash_spread_pct_gold/100));
-        const gold_cash   = Math.round(r24 * (1 - cfg.bank_cash_spread_pct_gold/100));
-        const silver_bank = Math.round(rs   * (1 + cfg.bank_cash_spread_pct_silver/100));
-        const silver_cash = Math.round(rs   * (1 - cfg.bank_cash_spread_pct_silver/100));
-        const g22 = Math.round(r24 * cfg.k22_factor);
-        const g20 = Math.round(r24 * cfg.k20_factor);
-        const g18 = Math.round(r24 * cfg.k18_factor);
-        const mcxGold   = Math.round(r24 * cfg.mcx_gold_lot_g  * (1 + cfg.mcx_gold_premium_pct/100));
-        const mcxSilver = Math.round(rs   * cfg.mcx_silver_lot_g * (1 + cfg.mcx_silver_premium_pct/100));
-        const rows = [
-          ['24 ct bank gold', fmtINR(gold_bank) + '/g'],
-          ['24 ct cash gold', fmtINR(gold_cash) + '/g'],
-          ['bank silver', fmtINR(silver_bank) + '/g'],
-          ['cash silver', fmtINR(silver_cash) + '/g'],
-          ['22 ct gold jewellery', fmtINR(g22) + '/g'],
-          ['20 ct gold jewellery', fmtINR(g20) + '/g'],
-          ['18 ct gold jewellery', fmtINR(g18) + '/g'],
-          ['MCX gold live*', fmtINR(mcxGold) + ' / 10g'],
-          ['MCX silver live*', fmtINR(mcxSilver) + ' / kg']
-        ];
-        grid.innerHTML = rows.map(([k, v]) => `
-          <div class="rounded-2xl border p-5 bg-white/80 hover:shadow-lg transition">
-            <div class="text-xs uppercase tracking-wide text-slate-500">${k}</div>
-            <div class="mt-2 text-2xl md:text-3xl font-bold">${v}</div>
-          </div>
-        `).join('');
-        return;
-      }
-
-      // nothing to show
-      grid.innerHTML = `<div class='text-center text-slate-500'>Rates data not available</div>`;
-
-    } catch (err) {
-      console.error(err);
-      document.getElementById('extended-rates').innerHTML = `<div class='text-center text-slate-500'>Failed to load rates.</div>`;
-      document.getElementById('rates-updated').textContent = 'Rates unavailable';
+    } catch (e) {
+      console.error(e);
+      grid.innerHTML = `<div class="text-center text-slate-500">Failed to load rates.</div>`;
+      updatedEl.textContent = "Rates unavailable";
     }
   })();
 </script>
