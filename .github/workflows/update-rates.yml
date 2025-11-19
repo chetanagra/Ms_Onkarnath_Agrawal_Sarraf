@@ -86,8 +86,25 @@ jobs:
           }
 
           # GOLD MAX & SILVER MAX (top items)
-          compute_line "gold_max" "GOLD MAX (MCX GOLD)" "$GOLD_PER_10G" 99.5 0 0 0 "10 g" > tmp_rate_gold_max.json
-          compute_line "silver_max" "SILVER MAX (MCX SILVER)" "$SILVER_PER_1KG" 99.9 0 0 0 "1 kg" > tmp_rate_silver_max.json
+          # GOLD MAX = pure MCX gold rate (per 10g)
+          jq -n \
+            --arg key "gold_max" \
+            --arg label "GOLD MAX (MCX GOLD)" \
+            --arg unit "10 g" \
+            --argjson buy "$GOLD_PER_10G" \
+            --argjson sell "$GOLD_PER_10G" \
+            '{key:$key,label:$label,unit:$unit,buy:$buy,sell:$sell}' \
+            > tmp_rate_gold_max.json
+          
+          # SILVER MAX = pure MCX silver rate (per 1kg)
+          jq -n \
+            --arg key "silver_max" \
+            --arg label "SILVER MAX (MCX SILVER)" \
+            --arg unit "1 kg" \
+            --argjson buy "$SILVER_PER_1KG" \
+            --argjson sell "$SILVER_PER_1KG" \
+            '{key:$key,label:$label,unit:$unit,buy:$buy,sell:$sell}' \
+            > tmp_rate_silver_max.json
 
           # GOLD 99.50 CASH / RTGS
           GOLD_995_RATE=$(awk "BEGIN{printf \"%.6f\", $MCX_GOLD * 0.995}")
