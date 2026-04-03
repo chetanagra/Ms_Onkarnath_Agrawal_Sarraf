@@ -1,6 +1,6 @@
 {
-  "updated": "2026-04-03 10:48 IST",
-  "timestamp": "2026-04-03T05:17:09.553Z",
+  "updated": "2026-04-03 19:10 IST",
+  "timestamp": "2026-04-03T13:39:13.207Z",
   "source": "Metals.dev (MCX INR/g)",
   "items": [
     {
@@ -67,8 +67,8 @@
       "key": "silver_999_cash",
       "label": "SILVER 999 SILCUT CASH BHAV",
       "unit": "1 kg",
-      "raw_base": 232367.30,
-      "mid": 239338.32,
+      "raw_base": 232367.40,
+      "mid": 239338.42,
       "buy": 238620,
       "sell": 240056
     },
@@ -76,8 +76,8 @@
       "key": "silver_max",
       "label": "SILVER MAX (MCX SILVER)",
       "unit": "1 kg",
-      "buy": 232599.90,
-      "sell": 232599.90
+      "buy": 232600.00,
+      "sell": 232600.00
     },
     {
       "key": "silver_refinery",
