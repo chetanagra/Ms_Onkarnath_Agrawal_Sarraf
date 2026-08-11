@@ -1,97 +1,97 @@
 {
-  "updated": "2026-08-10 19:21 IST",
-  "timestamp": "2026-08-10T13:50:15.927Z",
+  "updated": "2026-08-11 10:16 IST",
+  "timestamp": "2026-08-11T04:45:05.744Z",
   "source": "Metals.dev (MCX INR/g)",
   "items": [
     {
       "key": "gold_14k_basic",
       "label": "14 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 88642.75,
-      "sell": 88642.75
+      "buy": 90241.67,
+      "sell": 90241.67
     },
     {
       "key": "gold_18k_basic",
       "label": "18 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 113969.25,
-      "sell": 113969.25
+      "buy": 116025.00,
+      "sell": 116025.00
     },
     {
       "key": "gold_20k_basic",
       "label": "20 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 126632.50,
-      "sell": 126632.50
+      "buy": 128916.67,
+      "sell": 128916.67
     },
     {
       "key": "gold_22k_basic",
       "label": "22 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 139295.75,
-      "sell": 139295.75
+      "buy": 141808.34,
+      "sell": 141808.34
     },
     {
       "key": "gold_9k_basic",
       "label": "9 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 56984.63,
-      "sell": 56984.63
+      "buy": 58012.50,
+      "sell": 58012.50
     },
     {
       "key": "gold_99_50_cash",
       "label": "GOLD 99.50 CASH BHAV",
       "unit": "10 g",
-      "raw_base": 151199.20,
-      "mid": 160271.15,
-      "buy": 159870,
-      "sell": 160672
+      "raw_base": 153926.50,
+      "mid": 163162.09,
+      "buy": 162754,
+      "sell": 163570
     },
     {
       "key": "gold_max",
       "label": "GOLD MAX (MCX GOLD)",
       "unit": "10 g",
-      "buy": 151959.00,
-      "sell": 151959.00
+      "buy": 154700.00,
+      "sell": 154700.00
     },
     {
       "key": "gold_99_50_rtgs",
       "label": "GOLD 99.50 RTGS BHAV",
       "unit": "10 g",
-      "raw_base": 151199.21,
-      "mid": 157247.18,
-      "buy": 156775,
-      "sell": 157719
+      "raw_base": 153926.50,
+      "mid": 160083.56,
+      "buy": 159603,
+      "sell": 160564
     },
     {
       "key": "silver_999_cash",
       "label": "SILVER 999 SILCUT CASH BHAV",
       "unit": "1 kg",
-      "raw_base": 233186.48,
-      "mid": 240182.07,
-      "buy": 239462,
-      "sell": 240903
+      "raw_base": 238122.64,
+      "mid": 245266.32,
+      "buy": 244531,
+      "sell": 246002
     },
     {
       "key": "silver_max",
       "label": "SILVER MAX (MCX SILVER)",
       "unit": "1 kg",
-      "buy": 233419.90,
-      "sell": 233419.90
+      "buy": 238361.00,
+      "sell": 238361.00
     },
     {
       "key": "silver_refinery",
       "label": "SILVER REFINERY 99 PLUS CASH BHAV",
       "unit": "1 kg",
-      "buy": 231086,
-      "sell": 231086
+      "buy": 235977,
+      "sell": 235977
     },
     {
       "key": "silver_999_rtgs",
       "label": "SILVER SILCUT 999 RTGS BHAV",
       "unit": "1 kg",
-      "buy": 240422,
-      "sell": 240422
+      "buy": 245512,
+      "sell": 245512
     }
   ]
 }
