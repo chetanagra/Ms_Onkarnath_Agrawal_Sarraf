@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-01 23:59 IST",
-  "timestamp": "2026-10-01T18:29:07.328Z",
+  "updated": "2026-10-02 15:26 IST",
+  "timestamp": "2026-10-02T09:55:04.217Z",
   "source": "Metals.dev (MCX INR/g)",
   "items": [
     {
@@ -14,8 +14,8 @@
       "key": "gold_18k_basic",
       "label": "18 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 112792.50,
-      "sell": 112792.50
+      "buy": 112792.51,
+      "sell": 112792.51
     },
     {
       "key": "gold_20k_basic",
