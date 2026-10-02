@@ -1,6 +1,6 @@
 {
-  "updated": "2026-10-02 15:26 IST",
-  "timestamp": "2026-10-02T09:55:04.217Z",
+  "updated": "2026-10-02 23:26 IST",
+  "timestamp": "2026-10-02T17:56:04.435Z",
   "source": "Metals.dev (MCX INR/g)",
   "items": [
     {
@@ -14,22 +14,22 @@
       "key": "gold_18k_basic",
       "label": "18 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 112792.51,
-      "sell": 112792.51
+      "buy": 112792.50,
+      "sell": 112792.50
     },
     {
       "key": "gold_20k_basic",
       "label": "20 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 125325.01,
-      "sell": 125325.01
+      "buy": 125325.00,
+      "sell": 125325.00
     },
     {
       "key": "gold_22k_basic",
       "label": "22 K GOLD BASIC PRICE (GST & MAKING EXTRA)",
       "unit": "10 g",
-      "buy": 137857.51,
-      "sell": 137857.51
+      "buy": 137857.50,
+      "sell": 137857.50
     },
     {
       "key": "gold_9k_basic",
@@ -42,8 +42,8 @@
       "key": "gold_99_50_cash",
       "label": "GOLD 99.50 CASH BHAV",
       "unit": "10 g",
-      "raw_base": 149638.06,
-      "mid": 158616.34,
+      "raw_base": 149638.05,
+      "mid": 158616.33,
       "buy": 158220,
       "sell": 159013
     },
@@ -51,15 +51,15 @@
       "key": "gold_max",
       "label": "GOLD MAX (MCX GOLD)",
       "unit": "10 g",
-      "buy": 150390.01,
-      "sell": 150390.01
+      "buy": 150390.00,
+      "sell": 150390.00
     },
     {
       "key": "gold_99_50_rtgs",
       "label": "GOLD 99.50 RTGS BHAV",
       "unit": "10 g",
-      "raw_base": 149638.06,
-      "mid": 155623.58,
+      "raw_base": 149638.05,
+      "mid": 155623.57,
       "buy": 155157,
       "sell": 156090
     },
