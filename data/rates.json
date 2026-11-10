@@ -1,6 +1,6 @@
 {
-  "updated": "2026-11-10 04:04 IST",
-  "timestamp": "2026-11-09T22:34:13.596Z",
+  "updated": "2026-11-10 16:57 IST",
+  "timestamp": "2026-11-10T11:26:05.209Z",
   "source": "Metals.dev (MCX INR/g)",
   "items": [
     {
@@ -42,8 +42,8 @@
       "key": "gold_99_50_cash",
       "label": "GOLD 99.50 CASH BHAV",
       "unit": "10 g",
-      "raw_base": 142450.17,
-      "mid": 150997.18,
+      "raw_base": 142450.18,
+      "mid": 150997.19,
       "buy": 150620,
       "sell": 151375
     },
@@ -51,8 +51,8 @@
       "key": "gold_max",
       "label": "GOLD MAX (MCX GOLD)",
       "unit": "10 g",
-      "buy": 143166.00,
-      "sell": 143166.00
+      "buy": 143166.01,
+      "sell": 143166.01
     },
     {
       "key": "gold_99_50_rtgs",
@@ -67,8 +67,8 @@
       "key": "silver_999_cash",
       "label": "SILVER 999 SILCUT CASH BHAV",
       "unit": "1 kg",
-      "raw_base": 186939.77,
-      "mid": 192547.96,
+      "raw_base": 186939.87,
+      "mid": 192548.07,
       "buy": 191970,
       "sell": 193126
     },
@@ -76,8 +76,8 @@
       "key": "silver_max",
       "label": "SILVER MAX (MCX SILVER)",
       "unit": "1 kg",
-      "buy": 187126.90,
-      "sell": 187126.90
+      "buy": 187127.00,
+      "sell": 187127.00
     },
     {
       "key": "silver_refinery",
